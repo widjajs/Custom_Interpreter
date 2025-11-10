@@ -7,7 +7,6 @@ This will eventually be expanded to a fully fledged language.
 - **Arithmetic operations**: `+`, `-`, `*`, `/`
 - **Unary operations**: `-` (negation)
 - **Grouping**: Parentheses for explicit precedence
-- **Variables**: Define and use variables in expressions
 
 ## Implementation
 The evaluator follows the design patterns from *Crafting Interpreters*, including:
