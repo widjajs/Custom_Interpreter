@@ -1,0 +1,168 @@
+#include "../includes/vm.h"
+#include "../includes/debug.h"
+
+#include <stdarg.h>
+
+static Value_t peek(int offset);
+static void throw_runtime_error(const char *format, ...);
+
+#define BINARY_OP(type, op)                                                                        \
+    if (!IS_NUM_VAL(peek(0)) || !IS_NUM_VAL(peek(1))) {                                            \
+        throw_runtime_error("Operands are not numbers");                                           \
+        return INTERPRET_RUNTIME_ERROR;                                                            \
+    }                                                                                              \
+    double b = GET_NUM_VAL(pop());                                                                 \
+    double a = GET_NUM_VAL(pop());                                                                 \
+    push(type(a op b));
+
+vm_t vm;
+
+void init_vm() {
+    vm.stack_top = vm.stack;
+}
+
+void free_vm() {
+}
+
+void push(Value_t value) {
+    *vm.stack_top = value;
+    vm.stack_top++;
+}
+
+Value_t pop() {
+    vm.stack_top--;
+    return *vm.stack_top;
+}
+
+static Value_t peek(int offset) {
+    return vm.stack_top[-1 - offset];
+}
+
+static void reset_stack() {
+    vm.stack_top = vm.stack;
+}
+
+static void throw_runtime_error(const char *format, ...) {
+    va_list args;
+    va_start(args, format);
+    vfprintf(stderr, format, args);
+    va_end(args);
+    fputs("\n", stderr);
+
+    size_t offset = (vm.pc - vm.chunk->code) - 1;
+    int line = get_line(vm.chunk->line_runs, offset);
+    fprintf(stderr, "[line %d] in program\n", line);
+    reset_stack();
+}
+
+static bool is_falsey(Value_t value) {
+    return IS_NONE_VAL(value) || (IS_BOOL_VAL(value) && GET_BOOL_VAL(value) == false);
+}
+
+static InterpretResult_t run() {
+    while (true) {
+
+#ifdef DEBUG_TRACE_EXECUTION
+        printf(("       "));
+        for (Value_t *idx = vm.stack; idx < vm.stack_top; idx++) {
+            printf("[ ");
+            print_value(*idx);
+            printf(" ]");
+        }
+        printf("\n");
+        disassemble_instruction(vm.chunk, (int)(vm.pc - vm.chunk->code));
+#endif
+
+        uint8_t instruction;
+        switch (instruction = *vm.pc++) {
+            case OP_CONSTANT: {
+                Value_t constant = vm.chunk->constants.values[*(vm.pc++)];
+                push(constant);
+                break;
+            }
+            case OP_CONSTANT_LONG: {
+                int idx = (vm.pc[0]) | (vm.pc[1] << 8) | (vm.pc[2] << 16);
+                vm.pc += 3;
+                Value_t constant = vm.chunk->constants.values[idx];
+                push(constant);
+                break;
+            }
+            case OP_NONE: {
+                push(DECL_NONE_VAL);
+                break;
+            }
+            case OP_TRUE: {
+                push(DECL_BOOL_VAL(true));
+                break;
+            }
+            case OP_FALSE: {
+                push(DECL_BOOL_VAL(false));
+                break;
+            }
+            case OP_EQUAL: {
+                Value_t b = pop();
+                Value_t a = pop();
+                push(DECL_BOOL_VAL(equals(a, b)));
+                break;
+            }
+            case OP_GREATER_THAN: {
+                BINARY_OP(DECL_BOOL_VAL, >);
+                break;
+            }
+            case OP_LESS_THAN: {
+                BINARY_OP(DECL_BOOL_VAL, <);
+                break;
+            }
+            case OP_NOT: {
+                push(DECL_BOOL_VAL(is_falsey(pop())));
+                break;
+            }
+            case OP_ADD: {
+                BINARY_OP(DECL_NUM_VAL, +);
+                break;
+            }
+            case OP_SUB: {
+                BINARY_OP(DECL_NUM_VAL, -);
+                break;
+            }
+            case OP_MUL: {
+                BINARY_OP(DECL_NUM_VAL, *);
+                break;
+            }
+            case OP_DIV: {
+                BINARY_OP(DECL_NUM_VAL, /);
+                break;
+            }
+            case OP_NEGATE: {
+                if (!IS_NUM_VAL(peek(0))) {
+                    throw_runtime_error("Operand is not a number ");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                push(DECL_NUM_VAL(-GET_NUM_VAL(pop())));
+                break;
+            }
+            case OP_RETURN:
+                print_value(pop());
+                printf("\n");
+                return INTERPRET_OK;
+        }
+    }
+}
+
+InterpretResult_t interpret(const char *code) {
+    Chunk_t chunk;
+    init_chunk(&chunk);
+
+    if (!compile(code, &chunk)) {
+        free_chunk(&chunk);
+        return INTERPRET_COMPILE_ERROR;
+    }
+
+    vm.chunk = &chunk;
+    vm.pc = vm.chunk->code;
+
+    InterpretResult_t result = run();
+
+    free_chunk(&chunk);
+    return result;
+}

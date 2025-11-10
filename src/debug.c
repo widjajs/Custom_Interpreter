@@ -1,0 +1,92 @@
+#include <stdint.h>
+#include <stdio.h>
+
+#include "../includes/debug.h"
+
+int standard_instruction(const char *name, int offset);
+int constant_instruction(const char *name, Chunk_t *chunk, int offset);
+int constant_long_instruction(const char *name, Chunk_t *chunk, int offset);
+
+// given machine code -> output list of instructions
+void disassemble_chunk(Chunk_t *chunk, const char *name) {
+    printf("== %s ==\n", name);
+
+    int offset = 0;
+    while (offset < chunk->count) {
+        offset = disassemble_instruction(chunk, offset);
+    }
+}
+
+int disassemble_instruction(Chunk_t *chunk, int offset) {
+    printf("%04d ", offset);
+    if (offset > 0 &&
+        get_line(chunk->line_runs, offset) == get_line(chunk->line_runs, offset - 1)) {
+        printf("   | ");
+    } else {
+        printf("%4d ", get_line(chunk->line_runs, offset));
+    }
+
+    uint8_t instruction = chunk->code[offset];
+    switch (instruction) {
+        case OP_RETURN:
+            return standard_instruction("OP_RETURN", offset);
+        case OP_CONSTANT:
+            return constant_instruction("OP_CONSTANT", chunk, offset);
+        case OP_NONE:
+            return standard_instruction("OP_NONE", offset);
+        case OP_TRUE:
+            return standard_instruction("OP_TRUE", offset);
+        case OP_FALSE:
+            return standard_instruction("OP_FALSE", offset);
+        case OP_NOT:
+            return standard_instruction("OP_NOT", offset);
+        case OP_EQUAL:
+            return standard_instruction("OP_EQUAL", offset);
+        case OP_GREATER_THAN:
+            return standard_instruction("OP_GREATER_THAN", offset);
+        case OP_LESS_THAN:
+            return standard_instruction("OP_LESS_THAN", offset);
+        case OP_CONSTANT_LONG:
+            return constant_long_instruction("OP_CONSTANT_LONG", chunk, offset);
+        case OP_NEGATE:
+            return standard_instruction("OP_NEGATE", offset);
+        case OP_ADD:
+            return standard_instruction("OP_ADD", offset);
+        case OP_SUB:
+            return standard_instruction("OP_SUB", offset);
+        case OP_MUL:
+            return standard_instruction("OP_MUL", offset);
+        case OP_DIV:
+            return standard_instruction("OP_DIV", offset);
+        default:
+            printf("Unknown OpCode %d\n", instruction);
+            return offset + 1;
+    }
+}
+
+// ------------------------ Helper Functions ------------------------ //
+int standard_instruction(const char *name, int offset) {
+    printf("%s\n", name);
+    return offset + 1;
+}
+
+int constant_instruction(const char *name, Chunk_t *chunk, int offset) {
+    uint8_t idx = chunk->code[offset + 1];
+    // print left-aligned 16 char string then minimum 4-width integer
+    printf("%-16s %4d '", name, idx);
+    print_value(chunk->constants.values[idx]);
+    printf("'\n");
+    return offset + 2;
+}
+
+int constant_long_instruction(const char *name, Chunk_t *chunk, int offset) {
+    // long constants idxs are stored in 3 separate bytes so "merge" them back together
+    int idx = (chunk->code[offset + 1]) | (chunk->code[offset + 2] << 8) |
+              (chunk->code[offset + 3] << 16);
+
+    // print left-aligned 16 char string then minimum 4-width integer
+    printf("%-16s %4d '", name, idx);
+    print_value(chunk->constants.values[idx]);
+    printf("'\n");
+    return offset + 4;
+}
