@@ -1,6 +1,6 @@
 TARGET := main
 CC := gcc
-CFLAGS := -Wall -Werror -std=c17 -g
+CFLAGS := -Wall -Werror -std=c99 -g
 INCLUDES := -Iincludes
 SRC_DIR := src
 OBJ_DIR := build

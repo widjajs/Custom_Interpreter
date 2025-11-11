@@ -105,11 +105,8 @@ static void expression() {
 }
 
 static void string() {
-    printf("Token: start=%p, length=%d, text='%.*s'\n", parser.prev.start, parser.prev.length,
-           parser.prev.length, parser.prev.start);
-
     write_constant(get_cur_chunk(),
-                   DECL_OBJ_VAL(copy_str(parser.prev.start + 1, parser.prev.length - 2)),
+                   DECL_OBJ_VAL(allocate_str(parser.prev.start + 1, parser.prev.length - 2)),
                    parser.prev.line);
 }
 

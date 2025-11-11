@@ -23,15 +23,15 @@ struct Object_t {
 // ObjectStr_t* can be safely casted to Object_t*
 struct ObjectStr_t {
     Object_t object;
+    uint32_t hash;
     int length;
-    char *chars;
+    char chars[]; // Flexible array member
 };
 
 static inline bool is_obj_type(Value_t value, ObjectType_t type) {
     return IS_OBJ_VAL(value) && GET_OBJ_VAL(value)->type == type;
 }
 
-ObjectStr_t *allocate_str(char *chars, int length);
-ObjectStr_t *copy_str(const char *chars, int length);
+ObjectStr_t *allocate_str(const char *chars, int length);
 
 #endif

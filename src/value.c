@@ -65,10 +65,7 @@ bool equals(Value_t a, Value_t b) {
         case VAL_NONE:
             return true;
         case VAL_OBJ: {
-            ObjectStr_t *a_str = GET_STR_VAL(a);
-            ObjectStr_t *b_str = GET_STR_VAL(b);
-            return (a_str->length == b_str->length) &&
-                   (memcmp(a_str->chars, b_str->chars, a_str->length) == 0);
+            return GET_OBJ_VAL(a) == GET_OBJ_VAL(b);
         }
         default:
             return false;

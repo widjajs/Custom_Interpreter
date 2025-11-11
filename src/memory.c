@@ -25,7 +25,6 @@ static void free_object(Object_t *object) {
     switch (object->type) {
         case OBJ_STR: {
             ObjectStr_t *str = (ObjectStr_t *)object;
-            free(str->chars);
             free(str);
             break;
         }

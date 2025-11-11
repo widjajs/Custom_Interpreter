@@ -1,5 +1,4 @@
 #include "../includes/object.h"
-#include "../includes/memory.h"
 #include "../includes/value.h"
 #include "../includes/vm.h"
 
@@ -11,19 +10,31 @@ static Object_t *allocate_object(size_t size, ObjectType_t type) {
     return new_object;
 }
 
-ObjectStr_t *allocate_str(char *chars, int length) {
-    ObjectStr_t *str = ALLOCATE_OBJ(ObjectStr_t, OBJ_STR);
-    str->length = length;
-    str->chars = chars;
-    return str;
+static uint32_t hash_string(const char *key, int length) {
+    uint32_t hash = 2166136261u;
+    for (int i = 0; i < length; i++) {
+        hash ^= key[i];
+        hash *= 16777619;
+    }
+    return hash;
 }
 
-ObjectStr_t *copy_str(const char *chars, int length) {
-    printf("copy_str called: chars=%p, length=%d\n", chars, length);
-    char *new_str = ALLOCATE(char, length + 1);
-    printf("Allocated new_str at: %p\n", new_str);
-    memcpy(new_str, chars, length);
-    new_str[length] = '\0';
+ObjectStr_t *allocate_str(const char *chars, int length) {
+    ObjectStr_t *new_str =
+        (ObjectStr_t *)allocate_object(sizeof(ObjectStr_t) + sizeof(char) * (length + 1), OBJ_STR);
+    new_str->length = length;
+    memcpy(new_str->chars, chars, length);
+    new_str->chars[length] = '\0';
 
-    return allocate_str(new_str, length);
+    new_str->hash = hash_string(chars, length);
+
+    // string object already exists in memory check
+    ObjectStr_t *interned = find_str(&vm.strings, chars, length, new_str->hash);
+    if (interned != NULL) {
+        return interned;
+    }
+
+    insert(&vm.strings, new_str, DECL_NONE_VAL);
+
+    return new_str;
 }

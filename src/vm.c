@@ -22,10 +22,12 @@ vm_t vm;
 void init_vm() {
     vm.stack_top = vm.stack;
     vm.objects = NULL;
+    init_hash_table(&vm.strings);
 }
 
 void free_vm() {
     free_objects();
+    free_hash_table(&vm.strings);
 }
 
 void push(Value_t value) {

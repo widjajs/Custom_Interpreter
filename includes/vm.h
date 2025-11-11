@@ -3,12 +3,14 @@
 
 #include "chunk.h"
 #include "compiler.h"
+#include "hash_table.h"
 
 typedef struct {
     Chunk_t *chunk;
     uint8_t *pc;
     Value_t stack[256];
     Value_t *stack_top;
+    HashTable_t strings;
     Object_t *objects;
 } vm_t;
 
