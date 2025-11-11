@@ -31,6 +31,7 @@ ObjectStr_t *allocate_str(const char *chars, int length) {
     // string object already exists in memory check
     ObjectStr_t *interned = find_str(&vm.strings, chars, length, new_str->hash);
     if (interned != NULL) {
+        free(new_str);
         return interned;
     }
 
