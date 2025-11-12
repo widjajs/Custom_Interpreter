@@ -188,7 +188,7 @@ static InterpretResult_t run() {
                 int idx = *vm.pc++;      // last byte
                 idx |= (*vm.pc++ << 8);  // middle byte
                 idx |= (*vm.pc++ << 16); // front byte
-                ObjectStr_t *global_name = GET_STR_VAL(vm.chunk->constants.values[*vm.pc++]);
+                ObjectStr_t *global_name = GET_STR_VAL(vm.chunk->constants.values[idx]);
                 insert(&vm.globals, global_name, peek(0));
                 pop();
                 break;
@@ -208,7 +208,7 @@ static InterpretResult_t run() {
                 int idx = *vm.pc++;      // last byte
                 idx |= (*vm.pc++ << 8);  // middle byte
                 idx |= (*vm.pc++ << 16); // front byte
-                ObjectStr_t *global_name = GET_STR_VAL(vm.chunk->constants.values[*vm.pc++]);
+                ObjectStr_t *global_name = GET_STR_VAL(vm.chunk->constants.values[idx]);
                 Value_t *value = get(&vm.globals, global_name);
                 if (value == NULL) {
                     throw_runtime_error("This variable has not been defined '%s'",
