@@ -8,6 +8,7 @@ int constant_instruction(const char *name, Chunk_t *chunk, int offset);
 int constant_long_instruction(const char *name, Chunk_t *chunk, int offset);
 int byte_instruction(const char *name, Chunk_t *chunk, int offset);
 int byte_instruction_long(const char *name, Chunk_t *chunk, int offset);
+int branch_instruction(const char *name, int sign, Chunk_t *chunk, int offset);
 
 // given machine code -> output list of instructions
 void disassemble_chunk(Chunk_t *chunk, const char *name) {
@@ -84,6 +85,10 @@ int disassemble_instruction(Chunk_t *chunk, int offset) {
             return standard_instruction("OP_PRINT", offset);
         case OP_POP:
             return standard_instruction("OP_POP", offset);
+        case OP_BRANCH:
+            return branch_instruction("OP_BRANCH", 1, chunk, offset);
+        case OP_BRANCH_IF_FALSE:
+            return branch_instruction("OP_BRANCH_IF_FALSE", 1, chunk, offset);
 
         default:
             printf("Unknown OpCode %d\n", instruction);
@@ -92,6 +97,13 @@ int disassemble_instruction(Chunk_t *chunk, int offset) {
 }
 
 // ------------------------ Helper Functions ------------------------ //
+int branch_instruction(const char *name, int sign, Chunk_t *chunk, int offset) {
+    uint16_t jump = (uint16_t)(chunk->code[offset + 1] << 8);
+    jump |= chunk->code[offset + 2];
+    printf("%-16s %4d -> %d\n", name, offset, offset + 3 + sign * jump);
+    return offset + 3;
+}
+
 int standard_instruction(const char *name, int offset) {
     printf("%s\n", name);
     return offset + 1;

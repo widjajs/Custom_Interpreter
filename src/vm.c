@@ -4,6 +4,7 @@
 #include "../includes/object.h"
 
 #include <stdarg.h>
+#include <stdint.h>
 
 static Value_t peek(int offset);
 static void throw_runtime_error(const char *format, ...);
@@ -263,6 +264,20 @@ static InterpretResult_t run() {
                 idx |= (*vm.pc++ << 8);  // middle byte
                 idx |= (*vm.pc++ << 16); // front byte
                 vm.stack[idx] = peek(0);
+                break;
+            }
+            case OP_BRANCH_IF_FALSE: {
+                uint16_t offset = ((uint16_t)vm.pc[0] << 8 | (uint16_t)vm.pc[1]);
+                vm.pc += 2;
+                if (is_falsey(peek(0))) {
+                    vm.pc += offset;
+                }
+                break;
+            }
+            case OP_BRANCH: {
+                uint16_t offset = ((uint16_t)vm.pc[0] << 8 | (uint16_t)vm.pc[1]);
+                vm.pc += 2;
+                vm.pc += offset;
                 break;
             }
             case OP_RETURN:

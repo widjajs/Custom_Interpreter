@@ -224,9 +224,49 @@ static void end_scope() {
     }
 }
 
+// put a temporary offset while we calculate the actual offset of branch then replace temp later
+static int emit_branch(uint8_t instruction) {
+    emit_byte(instruction);
+    emit_byte(0xff);
+    emit_byte(0xff);
+    return get_cur_chunk()->count - 2;
+}
+
+// after we compile thru the then branch we can calculate the true offset
+static void fix_branch(int offset) {
+    int branch = get_cur_chunk()->count - offset - 2;
+
+    if (branch > UINT16_MAX) {
+        report_error(&parser.prev, "Too much code");
+    }
+
+    get_cur_chunk()->code[offset] = (branch >> 8) & 0xff;
+    get_cur_chunk()->code[offset + 1] = branch & 0xff;
+}
+
+static void if_statement() {
+    consume(TOKEN_OPEN_PAREN, "Expected '(' after if");
+    expression();
+    consume(TOKEN_CLOSE_PAREN, "Expected ')' after condition statement");
+
+    int then_offset = emit_branch(OP_BRANCH_IF_FALSE);
+    emit_byte(OP_POP);
+    statement();
+    int else_offset = emit_branch(OP_BRANCH);
+    fix_branch(then_offset);
+
+    emit_byte(OP_POP);
+    if (match(TOKEN_ELSE)) {
+        statement();
+    }
+    fix_branch(else_offset);
+}
+
 static void statement() {
     if (match(TOKEN_PRINT)) {
         print_statement();
+    } else if (match(TOKEN_IF)) {
+        if_statement();
     } else if (match(TOKEN_OPEN_CURLY)) {
         cur_compiler->scope_depth++;
         block();
@@ -348,7 +388,7 @@ static bool identifiers_equals(Token_t *a, Token_t *b) {
     if (a->length != b->length) {
         return false;
     }
-    return memcmp(a, b, a->length) == 0;
+    return memcmp(a->start, b->start, a->length) == 0;
 }
 
 static void declare_let() {

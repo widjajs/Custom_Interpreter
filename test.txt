@@ -1,10 +1,10 @@
-let a = 5;
-{
-    let a = 4;
-    print a;
-    {
-        let a = "goodbye";
-        print a;
+let a = "goodbye";
+let b = "hello";
+if (a == b) {
+    print "goodbye";
+} else {
+    print "hello";
+    if (3 == 3) {
+        print "blah";
     }
 }
-print a;
