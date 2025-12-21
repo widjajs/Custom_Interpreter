@@ -3,10 +3,12 @@
 #include "../includes/object.h"
 
 Parser_t parser;
-Chunk_t *cur_chunk;
+Chunk_t *cur_chunk = NULL;
+Compiler_t *cur_compiler = NULL;
 
 static void go_next();
 static void expression();
+static bool check(TokenType_t type);
 static void consume(TokenType_t type, const char *msg);
 static void report_error(Token_t *token, const char *msg);
 static void stop_compiler();
@@ -25,11 +27,16 @@ static void statement();
 static void declaration();
 static int parse_let(const char *msg);
 
+void init_compiler(Compiler_t *compiler);
+static bool identifiers_equals(Token_t *a, Token_t *b);
+
 HashTable_t compiler_ids;
 
 bool compile(const char *code, Chunk_t *chunk) {
     init_scanner(code);
     init_hash_table(&compiler_ids);
+    Compiler_t compiler;
+    init_compiler(&compiler);
     cur_chunk = chunk;
     parser.has_error = false;
     parser.is_panicking = false;
@@ -55,6 +62,14 @@ static void emit_byte(uint8_t byte) {
 static void emit_bytes(uint8_t byte_1, uint8_t byte_2) {
     emit_byte(byte_1);
     emit_byte(byte_2);
+}
+
+void init_compiler(Compiler_t *compiler) {
+    compiler->local_cnt = 0;
+    compiler->scope_depth = 0;
+    compiler->local_cap = 0;
+    compiler->locals = NULL;
+    cur_compiler = compiler;
 }
 
 static void stop_compiler() {
@@ -128,7 +143,15 @@ static void expression_statement() {
     emit_byte(OP_POP);
 }
 
+static void mark_initialized() {
+    cur_compiler->locals[cur_compiler->local_cnt - 1].depth = cur_compiler->scope_depth;
+}
+
 void define_let(int global_id) {
+    if (cur_compiler->scope_depth > 0) {
+        mark_initialized();
+        return;
+    }
     if (global_id <= 255) {
         emit_bytes(OP_DEFINE_GLOBAL, global_id);
     } else {
@@ -184,9 +207,30 @@ static bool match(TokenType_t type) {
     return false;
 }
 
+static void block() {
+    while (!check(TOKEN_CLOSE_CURLY) && !check(TOKEN_END_FILE)) {
+        declaration();
+    }
+    consume(TOKEN_CLOSE_CURLY, "Expected '}' to end block");
+}
+
+static void end_scope() {
+    cur_compiler->scope_depth--;
+    // clean up locals at the end of the block
+    while (cur_compiler->local_cnt > 0 &&
+           cur_compiler->locals[cur_compiler->local_cnt - 1].depth > cur_compiler->scope_depth) {
+        emit_byte(OP_POP);
+        cur_compiler->local_cnt--;
+    }
+}
+
 static void statement() {
     if (match(TOKEN_PRINT)) {
         print_statement();
+    } else if (match(TOKEN_OPEN_CURLY)) {
+        cur_compiler->scope_depth++;
+        block();
+        end_scope();
     } else {
         expression_statement();
     }
@@ -222,14 +266,40 @@ static int constant_identifier(Chunk_t *chunk, HashTable_t *ids, ObjectStr_t *na
     return idx;
 }
 
+static int resolve_local(Token_t *name) {
+    for (int i = cur_compiler->local_cnt - 1; i >= 0; i--) {
+        Local_t *local = &cur_compiler->locals[i];
+        if (identifiers_equals(name, &local->name)) {
+            return i;
+        }
+        if (local->depth == -1) {
+            report_error(&parser.prev, "Can't read local variable when it's being initialized");
+        }
+    }
+    return -1;
+}
+
 static void named_let(Token_t name, bool can_assign) {
     ObjectStr_t *global_name = allocate_str(parser.prev.start, parser.prev.length);
-    int operand = constant_identifier(get_cur_chunk(), &compiler_ids, global_name);
+    int operand = resolve_local(&name);
+    bool is_local = true;
+    if (operand == -1) {
+        operand = constant_identifier(get_cur_chunk(), &compiler_ids, global_name);
+        is_local = false;
+    }
     if (can_assign && match(TOKEN_EQUAL)) {
         expression();
-        emit_let_opcode(OP_SET_GLOBAL, OP_SET_GLOBAL_LONG, operand);
+        if (is_local) {
+            emit_let_opcode(OP_SET_LOCAL, OP_SET_LOCAL_LONG, operand);
+        } else {
+            emit_let_opcode(OP_SET_GLOBAL, OP_SET_GLOBAL_LONG, operand);
+        }
     } else {
-        emit_let_opcode(OP_GET_GLOBAL, OP_GET_GLOBAL_LONG, operand);
+        if (is_local) {
+            emit_let_opcode(OP_GET_LOCAL, OP_GET_LOCAL_LONG, operand);
+        } else {
+            emit_let_opcode(OP_GET_GLOBAL, OP_GET_GLOBAL_LONG, operand);
+        }
     }
 }
 
@@ -262,9 +332,53 @@ static void parse_precedence(Precedence_t prec) {
     }
 }
 
+static void add_local(Token_t token) {
+    if (cur_compiler->local_cnt + 1 > cur_compiler->local_cap) {
+        int old_capacity = cur_compiler->local_cnt;
+        cur_compiler->local_cap = grow_capacity(old_capacity);
+        cur_compiler->locals =
+            resize(cur_compiler->locals, sizeof(Local_t), cur_compiler->local_cap);
+    }
+    Local_t *local = &cur_compiler->locals[cur_compiler->local_cnt++];
+    local->name = token;
+    local->depth = -1;
+}
+
+static bool identifiers_equals(Token_t *a, Token_t *b) {
+    if (a->length != b->length) {
+        return false;
+    }
+    return memcmp(a, b, a->length) == 0;
+}
+
+static void declare_let() {
+    // this func does decl for locals so exit if we are declaring global
+    if (cur_compiler->scope_depth == 0) {
+        return;
+    }
+    Token_t name = parser.prev;
+    for (int i = cur_compiler->local_cnt; i > 0; i--) {
+        Local_t *local = &cur_compiler->locals[i];
+        if (local->depth != -1 && local->depth < cur_compiler->scope_depth) {
+            // out of scope of current block
+            break;
+        }
+        if (identifiers_equals(&name, &local->name)) {
+            report_error(&parser.prev, "Variable has already been declared");
+        }
+    }
+    add_local(parser.prev);
+}
+
 static int parse_let(const char *msg) {
     // parse variable and add constant byte to chunk
     consume(TOKEN_IDENTIFIER, msg);
+    declare_let();
+    if (cur_compiler->scope_depth > 0) {
+        // exit if we are in local scope
+        return 0;
+    }
+    // global variable declaration
     return add_constant(get_cur_chunk(),
                         DECL_OBJ_VAL(allocate_str(parser.prev.start, parser.prev.length)));
 }
@@ -358,6 +472,10 @@ static void binary(bool can_assign) {
 }
 
 // ===================================================================================================
+
+static bool check(TokenType_t type) {
+    return parser.cur.type == type;
+}
 
 static void consume(TokenType_t type, const char *msg) {
     if (parser.cur.type == type) {

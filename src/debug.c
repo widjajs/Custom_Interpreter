@@ -6,6 +6,8 @@
 int standard_instruction(const char *name, int offset);
 int constant_instruction(const char *name, Chunk_t *chunk, int offset);
 int constant_long_instruction(const char *name, Chunk_t *chunk, int offset);
+int byte_instruction(const char *name, Chunk_t *chunk, int offset);
+int byte_instruction_long(const char *name, Chunk_t *chunk, int offset);
 
 // given machine code -> output list of instructions
 void disassemble_chunk(Chunk_t *chunk, const char *name) {
@@ -38,6 +40,10 @@ int disassemble_instruction(Chunk_t *chunk, int offset) {
             return constant_instruction("OP_GET_GLOBAL", chunk, offset);
         case OP_SET_GLOBAL:
             return constant_instruction("OP_SET_GLOBAL", chunk, offset);
+        case OP_GET_LOCAL:
+            return byte_instruction("OP_GET_LOCAL", chunk, offset);
+        case OP_SET_LOCAL:
+            return byte_instruction("OP_SET_LOCAL", chunk, offset);
         case OP_NONE:
             return standard_instruction("OP_NONE", offset);
         case OP_TRUE:
@@ -60,6 +66,10 @@ int disassemble_instruction(Chunk_t *chunk, int offset) {
             return constant_long_instruction("OP_GET_GLOBAL_LONG", chunk, offset);
         case OP_SET_GLOBAL_LONG:
             return constant_long_instruction("OP_SET_GLOBAL_LONG", chunk, offset);
+        case OP_GET_LOCAL_LONG:
+            return byte_instruction_long("OP_GET_LOCAL_LONG", chunk, offset);
+        case OP_SET_LOCAL_LONG:
+            return byte_instruction_long("OP_SET_LOCAL_LONG", chunk, offset);
         case OP_NEGATE:
             return standard_instruction("OP_NEGATE", offset);
         case OP_ADD:
@@ -74,6 +84,7 @@ int disassemble_instruction(Chunk_t *chunk, int offset) {
             return standard_instruction("OP_PRINT", offset);
         case OP_POP:
             return standard_instruction("OP_POP", offset);
+
         default:
             printf("Unknown OpCode %d\n", instruction);
             return offset + 1;
@@ -104,5 +115,20 @@ int constant_long_instruction(const char *name, Chunk_t *chunk, int offset) {
     printf("%-16s %4d '", name, idx);
     print_value(chunk->constants.values[idx]);
     printf("'\n");
+    return offset + 4;
+}
+
+int byte_instruction(const char *name, Chunk_t *chunk, int offset) {
+    uint8_t idx = chunk->code[offset + 1];
+    printf("%-16s %4d\n", name, idx);
+    return offset + 2;
+}
+
+int byte_instruction_long(const char *name, Chunk_t *chunk, int offset) {
+    int idx = (chunk->code[offset + 1]) | (chunk->code[offset + 2] << 8) |
+              (chunk->code[offset + 3] << 16);
+
+    // print left-aligned 16 char string then minimum 4-width integer
+    printf("%-16s %4d\n", name, idx);
     return offset + 4;
 }

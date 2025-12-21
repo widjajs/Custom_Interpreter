@@ -31,6 +31,10 @@ typedef enum {
     OP_GET_GLOBAL_LONG, // if global id > 255
     OP_SET_GLOBAL,
     OP_SET_GLOBAL_LONG, // if globa id > 255
+    OP_GET_LOCAL,
+    OP_SET_LOCAL,
+    OP_GET_LOCAL_LONG,
+    OP_SET_LOCAL_LONG,
     OP_RETURN,
 } OpCode_t;
 

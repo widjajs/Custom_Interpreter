@@ -29,6 +29,18 @@ typedef struct {
     Precedence_t precedence; // prefix precedence
 } ParseRule_t;
 
+typedef struct {
+    Token_t name; // variable name
+    int depth;
+} Local_t;
+
+typedef struct {
+    Local_t *locals;
+    int local_cnt;
+    int local_cap;
+    int scope_depth;
+} Compiler_t;
+
 bool compile(const char *code, Chunk_t *chunk);
 
 #endif

@@ -1,5 +1,10 @@
 let a = 5;
-a = 10;
-let b = 30;
-b = b * a;
-print b;
+{
+    let a = 4;
+    print a;
+    {
+        let a = "goodbye";
+        print a;
+    }
+}
+print a;

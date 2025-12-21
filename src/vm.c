@@ -241,6 +241,30 @@ static InterpretResult_t run() {
                 }
                 break;
             }
+            case OP_GET_LOCAL: {
+                int idx = *vm.pc++;
+                push(vm.stack[idx]);
+                break;
+            }
+            case OP_GET_LOCAL_LONG: {
+                int idx = *vm.pc++;      // last byte
+                idx |= (*vm.pc++ << 8);  // middle byte
+                idx |= (*vm.pc++ << 16); // front byte
+                push(vm.stack[idx]);
+                break;
+            }
+            case OP_SET_LOCAL: {
+                int idx = *vm.pc++;
+                vm.stack[idx] = peek(0);
+                break;
+            }
+            case OP_SET_LOCAL_LONG: {
+                int idx = *vm.pc++;      // last byte
+                idx |= (*vm.pc++ << 8);  // middle byte
+                idx |= (*vm.pc++ << 16); // front byte
+                vm.stack[idx] = peek(0);
+                break;
+            }
             case OP_RETURN:
                 return INTERPRET_OK;
         }
