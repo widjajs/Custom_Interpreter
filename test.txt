@@ -8,3 +8,8 @@ if (a == b) {
         print "blah";
     }
 }
+
+
+if ((1 == 2 or 2 == 2) and 2==1) {
+    print "BRO";
+}

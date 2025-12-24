@@ -21,6 +21,8 @@ static void literal(bool can_assign);
 static void string(bool can_assign);
 static void let(bool can_assign);
 static void parse_precedence(Precedence_t prec);
+static void and_(bool can_assign);
+static void or_(bool can_assign);
 
 static bool match(TokenType_t type);
 static void statement();
@@ -107,7 +109,7 @@ ParseRule_t rules[] = {
     [TOKEN_IDENTIFIER] = {let, NULL, PREC_NONE},
     [TOKEN_STR] = {string, NULL, PREC_NONE},
     [TOKEN_NUM] = {number, NULL, PREC_NONE},
-    [TOKEN_AND] = {NULL, NULL, PREC_NONE},
+    [TOKEN_AND] = {NULL, and_, PREC_AND},
     [TOKEN_CLASS] = {NULL, NULL, PREC_NONE},
     [TOKEN_ELSE] = {NULL, NULL, PREC_NONE},
     [TOKEN_FALSE] = {literal, NULL, PREC_NONE},
@@ -115,7 +117,7 @@ ParseRule_t rules[] = {
     [TOKEN_FUNC] = {NULL, NULL, PREC_NONE},
     [TOKEN_IF] = {NULL, NULL, PREC_NONE},
     [TOKEN_NONE] = {literal, NULL, PREC_NONE},
-    [TOKEN_OR] = {NULL, NULL, PREC_NONE},
+    [TOKEN_OR] = {NULL, or_, PREC_OR},
     [TOKEN_PRINT] = {NULL, NULL, PREC_NONE},
     [TOKEN_RETURN] = {NULL, NULL, PREC_NONE},
     [TOKEN_SUPER] = {NULL, NULL, PREC_NONE},
@@ -244,9 +246,19 @@ static void fix_branch(int offset) {
     get_cur_chunk()->code[offset + 1] = branch & 0xff;
 }
 
+/*
+ * [condition]
+ * BRANCH_IF_FALSE -> L1
+ * POP
+ * then_stmt
+ * L1:
+ * POP
+ * else_stmt
+ * L2:
+ */
 static void if_statement() {
     consume(TOKEN_OPEN_PAREN, "Expected '(' after if");
-    expression();
+    expression(); // condition
     consume(TOKEN_CLOSE_PAREN, "Expected ')' after condition statement");
 
     int then_offset = emit_branch(OP_BRANCH_IF_FALSE);
@@ -260,6 +272,40 @@ static void if_statement() {
         statement();
     }
     fix_branch(else_offset);
+}
+
+/*
+ * left condition
+ * BRANCH_IF_FALSE -> end
+ * POP
+ * right condition
+ * end:
+ */
+static void and_(bool can_assign) {
+    int end_branch = emit_branch(OP_BRANCH_IF_FALSE);
+
+    emit_byte(OP_POP);
+    parse_precedence(PREC_AND);
+    fix_branch(end_branch);
+}
+
+/*
+ * left condition
+ * BRANCH_IF_FALSE -> else
+ * BRANCH -> end
+ * else:
+ * POP
+ * right condition
+ * end:
+ */
+static void or_(bool can_assign) {
+    int else_branch = emit_branch(OP_BRANCH_IF_FALSE);
+    int end_branch = emit_branch(OP_BRANCH);
+
+    fix_branch(else_branch);
+    emit_byte(OP_POP);
+    parse_precedence(PREC_OR);
+    fix_branch(end_branch);
 }
 
 static void statement() {
