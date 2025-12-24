@@ -89,6 +89,8 @@ int disassemble_instruction(Chunk_t *chunk, int offset) {
             return branch_instruction("OP_BRANCH", 1, chunk, offset);
         case OP_BRANCH_IF_FALSE:
             return branch_instruction("OP_BRANCH_IF_FALSE", 1, chunk, offset);
+        case OP_LOOP:
+            return branch_instruction("OP_LOOP", -1, chunk, offset);
 
         default:
             printf("Unknown OpCode %d\n", instruction);

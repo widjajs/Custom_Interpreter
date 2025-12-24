@@ -308,11 +308,114 @@ static void or_(bool can_assign) {
     fix_branch(end_branch);
 }
 
+static void emit_loop(int loop_start) {
+    emit_byte(OP_LOOP);
+
+    int offset = get_cur_chunk()->count - loop_start + 2;
+    if (offset > UINT16_MAX) {
+        report_error(&parser.prev, "Loop has too much code");
+    }
+
+    emit_byte((offset >> 8) & 0xff);
+    emit_byte(offset & 0xff);
+}
+
+/*
+ * condition
+ * BRANCH_IF_FALSE -> exit
+ * POP
+ * statement
+ * exit:
+ * POP
+ */
+static void while_statement() {
+    int loop_start = get_cur_chunk()->count;
+
+    consume(TOKEN_OPEN_PAREN, "Expected '(' after if");
+    expression(); // condition
+    consume(TOKEN_CLOSE_PAREN, "Expected ')' after condition statement");
+
+    int exit_branch = emit_branch(OP_BRANCH_IF_FALSE);
+    emit_byte(OP_POP);
+    statement();
+    emit_loop(loop_start);
+    fix_branch(exit_branch);
+    emit_byte(OP_POP);
+}
+
+/*
+ * initializer
+ * loop_start:
+ * JUMP_IF_FALSE
+ * POP
+ * body:
+ * LOOP
+ * POP
+ * increment:
+ * POP
+ * LOOP
+ * exit:
+ */
+static void for_statement() {
+    cur_compiler->scope_depth++;
+    consume(TOKEN_OPEN_PAREN, "Expected '(' after if");
+
+    // potential loop initializer
+    if (match(TOKEN_SEMICOLON)) {
+        // empty initializer in for loop
+    } else if (match(TOKEN_LET)) {
+        let_declaration();
+    } else {
+        expression_statement();
+    }
+
+    // potential loop condition
+    int loop_start = get_cur_chunk()->count;
+    int exit_branch = -1;
+    if (!match(TOKEN_SEMICOLON)) {
+        expression();
+        consume(TOKEN_SEMICOLON, "Expect ';' after condition statement");
+
+        // exit loop if condition = False
+        exit_branch = emit_branch(OP_BRANCH_IF_FALSE);
+        emit_byte(OP_POP);
+    }
+
+    // potential incremetor
+    if (!match(TOKEN_CLOSE_PAREN)) {
+        int body_branch = emit_branch(OP_BRANCH);
+
+        int increment_start = get_cur_chunk()->count;
+        expression();
+        emit_byte(OP_POP);
+        consume(TOKEN_CLOSE_PAREN, "Expect ')'");
+
+        emit_loop(loop_start);
+        loop_start = increment_start;
+        fix_branch(body_branch);
+    }
+
+    statement();
+
+    emit_loop(loop_start);
+
+    if (exit_branch != -1) {
+        fix_branch(exit_branch);
+        emit_byte(OP_POP);
+    }
+
+    end_scope();
+}
+
 static void statement() {
     if (match(TOKEN_PRINT)) {
         print_statement();
     } else if (match(TOKEN_IF)) {
         if_statement();
+    } else if (match(TOKEN_WHILE)) {
+        while_statement();
+    } else if (match(TOKEN_FOR)) {
+        for_statement();
     } else if (match(TOKEN_OPEN_CURLY)) {
         cur_compiler->scope_depth++;
         block();

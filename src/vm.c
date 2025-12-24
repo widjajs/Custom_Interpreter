@@ -280,6 +280,12 @@ static InterpretResult_t run() {
                 vm.pc += offset;
                 break;
             }
+            case OP_LOOP: {
+                uint16_t offset = ((uint16_t)vm.pc[0] << 8 | (uint16_t)vm.pc[1]);
+                vm.pc += 2;
+                vm.pc -= offset;
+                break;
+            }
             case OP_RETURN:
                 return INTERPRET_OK;
         }

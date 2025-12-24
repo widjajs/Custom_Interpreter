@@ -37,6 +37,7 @@ typedef enum {
     OP_SET_LOCAL_LONG,
     OP_BRANCH_IF_FALSE,
     OP_BRANCH,
+    OP_LOOP,
     OP_RETURN,
 } OpCode_t;
 
