@@ -70,7 +70,7 @@ You're all set! Run the following to execute any Glide code
 
 Note: debug flags for assembly and bytecode output can be enabled in utility.h  
 
-Note: If you are getting "permission denied" errors when running ```bash build.sh```, allow permission by running:  
+Note: If you are getting "permission denied" errors when running `build.sh`, allow permission by running:  
 ```bash
 chmod +x build.sh
 ```
