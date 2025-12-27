@@ -52,6 +52,8 @@ bool compile(const char *code, Chunk_t *chunk) {
 
 // ===================================================================================================
 
+// TODO: 425
+
 static Chunk_t *get_cur_chunk() {
     return cur_chunk;
 }
