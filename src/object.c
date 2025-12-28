@@ -39,3 +39,11 @@ ObjectStr_t *allocate_str(const char *chars, int length) {
 
     return new_str;
 }
+
+ObjectFunc_t *create_func() {
+    ObjectFunc_t *new_func = ALLOCATE_OBJ(ObjectFunc_t, OBJ_FUNC);
+    new_func->num_params = 0;
+    new_func->name = NULL;
+    init_chunk(&new_func->chunk);
+    return new_func;
+}

@@ -34,13 +34,20 @@ typedef struct {
     int depth;
 } Local_t;
 
+typedef enum {
+    TYPE_FUNCTION, // user-defined function
+    TYPE_SCRIPT    // entire script-lvl function
+} FuncType_t;
+
 typedef struct {
+    ObjectFunc_t *func;
+    FuncType_t type;
     Local_t *locals;
     int local_cnt;
     int local_cap;
     int scope_depth;
 } Compiler_t;
 
-bool compile(const char *code, Chunk_t *chunk);
+ObjectFunc_t *compile(const char *code);
 
 #endif

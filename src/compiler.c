@@ -11,7 +11,7 @@ static void expression();
 static bool check(TokenType_t type);
 static void consume(TokenType_t type, const char *msg);
 static void report_error(Token_t *token, const char *msg);
-static void stop_compiler();
+static ObjectFunc_t *stop_compiler();
 
 static void number(bool can_assign);
 static void grouping(bool can_assign);
@@ -29,33 +29,31 @@ static void statement();
 static void declaration();
 static int parse_let(const char *msg);
 
-void init_compiler(Compiler_t *compiler);
+void init_compiler(Compiler_t *compiler, FuncType_t type);
 static bool identifiers_equals(Token_t *a, Token_t *b);
 
 HashTable_t compiler_ids;
 
-bool compile(const char *code, Chunk_t *chunk) {
+ObjectFunc_t *compile(const char *code) {
     init_scanner(code);
     init_hash_table(&compiler_ids);
     Compiler_t compiler;
-    init_compiler(&compiler);
-    cur_chunk = chunk;
+    init_compiler(&compiler, TYPE_SCRIPT);
+    // cur_chunk = chunk;
     parser.has_error = false;
     parser.is_panicking = false;
     go_next();
     while (!match(TOKEN_END_FILE)) {
         declaration();
     }
-    stop_compiler();
-    return !parser.has_error;
+    ObjectFunc_t *func = stop_compiler();
+    return parser.has_error ? NULL : func;
 }
 
 // ===================================================================================================
 
-// TODO: 425
-
 static Chunk_t *get_cur_chunk() {
-    return cur_chunk;
+    return &cur_compiler->func->chunk;
 }
 
 static void emit_byte(uint8_t byte) {
@@ -68,22 +66,37 @@ static void emit_bytes(uint8_t byte_1, uint8_t byte_2) {
     emit_byte(byte_2);
 }
 
-void init_compiler(Compiler_t *compiler) {
+void init_compiler(Compiler_t *compiler, FuncType_t type) {
+    compiler->func = NULL;
+    compiler->type = type;
     compiler->local_cnt = 0;
     compiler->scope_depth = 0;
-    compiler->local_cap = 0;
-    compiler->locals = NULL;
+    compiler->local_cap = 8;
+    compiler->func = create_func();
+    compiler->locals = malloc(sizeof(Local_t) * compiler->local_cap);
     cur_compiler = compiler;
+
+    // stack slot zero is claimed for VM internal use
+    Local_t *local = &cur_compiler->locals[cur_compiler->local_cnt++];
+    local->depth = 0;
+    local->name.start = "";
+    local->name.length = 0;
 }
 
-static void stop_compiler() {
+static ObjectFunc_t *stop_compiler() {
     emit_byte(OP_RETURN);
+    ObjectFunc_t *func = cur_compiler->func;
 #ifdef DEBUG_PRINT_CODE
     if (!parser.has_error) {
-        disassemble_chunk(get_cur_chunk(), "Code");
+        disassemble_chunk(get_cur_chunk(), func->name != NULL ? func->name->chars : "<script>");
     }
 #endif
+    if (cur_compiler->locals != NULL) {
+        free(cur_compiler->locals);
+        cur_compiler->locals = NULL;
+    }
     free_hash_table(&compiler_ids);
+    return func;
 }
 
 // ===================================================================================================

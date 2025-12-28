@@ -22,6 +22,7 @@ vm_t vm;
 
 void init_vm() {
     vm.stack_top = vm.stack;
+    vm.frame_cnt = 0;
     vm.objects = NULL;
     init_hash_table(&vm.strings);
     init_hash_table(&vm.globals);
@@ -58,8 +59,9 @@ static void throw_runtime_error(const char *format, ...) {
     va_end(args);
     fputs("\n", stderr);
 
-    size_t offset = (vm.pc - vm.chunk->code) - 1;
-    int line = get_line(vm.chunk->line_runs, offset);
+    CallFrame_t *frame = &vm.frames[vm.frame_cnt - 1];
+    size_t offset = (frame->pc - frame->func->chunk.code) - 1;
+    int line = get_line(frame->func->chunk.line_runs, offset);
     fprintf(stderr, "[line %d] in program\n", line);
     reset_stack();
 }
@@ -83,6 +85,7 @@ static void concatenate() {
 }
 
 static InterpretResult_t run() {
+    CallFrame_t *frame = &vm.frames[vm.frame_cnt - 1];
     while (true) {
 
 #ifdef DEBUG_TRACE_EXECUTION
@@ -93,20 +96,20 @@ static InterpretResult_t run() {
             printf(" ]");
         }
         printf("\n");
-        disassemble_instruction(vm.chunk, (int)(vm.pc - vm.chunk->code));
+        disassemble_instruction(&frame->func->chunk, (int)(frame->pc - frame->func->chunk.code));
 #endif
 
         uint8_t instruction;
-        switch (instruction = *vm.pc++) {
+        switch (instruction = *frame->pc++) {
             case OP_CONSTANT: {
-                Value_t constant = vm.chunk->constants.values[*(vm.pc++)];
+                Value_t constant = frame->func->chunk.constants.values[*(frame->pc++)];
                 push(constant);
                 break;
             }
             case OP_CONSTANT_LONG: {
-                int idx = (vm.pc[0]) | (vm.pc[1] << 8) | (vm.pc[2] << 16);
-                vm.pc += 3;
-                Value_t constant = vm.chunk->constants.values[idx];
+                int idx = (frame->pc[0]) | (frame->pc[1] << 8) | (frame->pc[2] << 16);
+                frame->pc += 3;
+                Value_t constant = frame->func->chunk.constants.values[idx];
                 push(constant);
                 break;
             }
@@ -146,7 +149,8 @@ static InterpretResult_t run() {
                 } else if (IS_NUM_VAL(peek(0)) && IS_NUM_VAL(peek(1))) {
                     BINARY_OP(DECL_NUM_VAL, +);
                 } else {
-                    throw_runtime_error("Operands are not both strings or both numbers");
+                    throw_runtime_error(
+                        "Runtime Error: Operands are not both strings or both numbers");
                 }
                 break;
             }
@@ -164,7 +168,7 @@ static InterpretResult_t run() {
             }
             case OP_NEGATE: {
                 if (!IS_NUM_VAL(peek(0))) {
-                    throw_runtime_error("Operand is not a number ");
+                    throw_runtime_error("Runtme Error: Operand is not a number ");
                     return INTERPRET_RUNTIME_ERROR;
                 }
                 push(DECL_NUM_VAL(-GET_NUM_VAL(pop())));
@@ -180,22 +184,23 @@ static InterpretResult_t run() {
                 break;
             }
             case OP_DEFINE_GLOBAL: {
-                ObjectStr_t *global_name = GET_STR_VAL(vm.chunk->constants.values[*vm.pc++]);
+                ObjectStr_t *global_name =
+                    GET_STR_VAL(frame->func->chunk.constants.values[*frame->pc++]);
                 insert(&vm.globals, global_name, peek(0));
                 pop();
                 break;
             }
             case OP_DEFINE_GLOBAL_LONG: {
-                int idx = *vm.pc++;      // last byte
-                idx |= (*vm.pc++ << 8);  // middle byte
-                idx |= (*vm.pc++ << 16); // front byte
-                ObjectStr_t *global_name = GET_STR_VAL(vm.chunk->constants.values[idx]);
+                int idx = frame->pc[0] | (frame->pc[1] << 8) | (frame->pc[2] << 16);
+                frame->pc += 3;
+                ObjectStr_t *global_name = GET_STR_VAL(frame->func->chunk.constants.values[idx]);
                 insert(&vm.globals, global_name, peek(0));
                 pop();
                 break;
             }
             case OP_GET_GLOBAL: {
-                ObjectStr_t *global_name = GET_STR_VAL(vm.chunk->constants.values[*vm.pc++]);
+                ObjectStr_t *global_name =
+                    GET_STR_VAL(frame->func->chunk.constants.values[*frame->pc++]);
                 Value_t *value = get(&vm.globals, global_name);
                 if (value == NULL) {
                     throw_runtime_error("This variable has not been defined '%s'",
@@ -206,10 +211,9 @@ static InterpretResult_t run() {
                 break;
             }
             case OP_GET_GLOBAL_LONG: {
-                int idx = *vm.pc++;      // last byte
-                idx |= (*vm.pc++ << 8);  // middle byte
-                idx |= (*vm.pc++ << 16); // front byte
-                ObjectStr_t *global_name = GET_STR_VAL(vm.chunk->constants.values[idx]);
+                int idx = frame->pc[0] | (frame->pc[1] << 8) | (frame->pc[2] << 16);
+                frame->pc += 3;
+                ObjectStr_t *global_name = GET_STR_VAL(frame->func->chunk.constants.values[idx]);
                 Value_t *value = get(&vm.globals, global_name);
                 if (value == NULL) {
                     throw_runtime_error("This variable has not been defined '%s'",
@@ -220,7 +224,8 @@ static InterpretResult_t run() {
                 break;
             }
             case OP_SET_GLOBAL: {
-                ObjectStr_t *global_name = GET_STR_VAL(vm.chunk->constants.values[*vm.pc++]);
+                ObjectStr_t *global_name =
+                    GET_STR_VAL(frame->func->chunk.constants.values[*frame->pc++]);
                 if (insert(&vm.globals, global_name, peek(0))) {
                     drop(&vm.globals, global_name);
                     throw_runtime_error("Undefined variable name '%s' LET's define it!",
@@ -230,10 +235,9 @@ static InterpretResult_t run() {
                 break;
             }
             case OP_SET_GLOBAL_LONG: {
-                int idx = *vm.pc++;      // last byte
-                idx |= (*vm.pc++ << 8);  // middle byte
-                idx |= (*vm.pc++ << 16); // front byte
-                ObjectStr_t *global_name = GET_STR_VAL(vm.chunk->constants.values[idx]);
+                int idx = frame->pc[0] | (frame->pc[1] << 8) | (frame->pc[2] << 16);
+                frame->pc += 3;
+                ObjectStr_t *global_name = GET_STR_VAL(frame->func->chunk.constants.values[idx]);
                 if (insert(&vm.globals, global_name, peek(0))) {
                     drop(&vm.globals, global_name);
                     throw_runtime_error("Undefined variable name '%s' LET's define it!",
@@ -243,47 +247,44 @@ static InterpretResult_t run() {
                 break;
             }
             case OP_GET_LOCAL: {
-                int idx = *vm.pc++;
-                push(vm.stack[idx]);
+                int idx = *frame->pc++;
+                push(frame->slots[idx]);
                 break;
             }
             case OP_GET_LOCAL_LONG: {
-                int idx = *vm.pc++;      // last byte
-                idx |= (*vm.pc++ << 8);  // middle byte
-                idx |= (*vm.pc++ << 16); // front byte
-                push(vm.stack[idx]);
+                int idx = frame->pc[0] | (frame->pc[1] << 8) | (frame->pc[2] << 16);
+                frame->pc += 3;
+                push(frame->slots[idx]);
                 break;
             }
             case OP_SET_LOCAL: {
-                int idx = *vm.pc++;
-                vm.stack[idx] = peek(0);
+                int idx = *frame->pc++;
+                frame->slots[idx] = peek(0);
                 break;
             }
             case OP_SET_LOCAL_LONG: {
-                int idx = *vm.pc++;      // last byte
-                idx |= (*vm.pc++ << 8);  // middle byte
-                idx |= (*vm.pc++ << 16); // front byte
-                vm.stack[idx] = peek(0);
+                int idx = frame->pc[0] | (frame->pc[1] << 8) | (frame->pc[2] << 16);
+                frame->slots[idx] = peek(0);
                 break;
             }
             case OP_BRANCH_IF_FALSE: {
-                uint16_t offset = ((uint16_t)vm.pc[0] << 8 | (uint16_t)vm.pc[1]);
-                vm.pc += 2;
+                uint16_t offset = ((uint16_t)(frame->pc[0]) << 8 | (uint16_t)(frame->pc[1]));
+                frame->pc += 2;
                 if (is_falsey(peek(0))) {
-                    vm.pc += offset;
+                    frame->pc += offset;
                 }
                 break;
             }
             case OP_BRANCH: {
-                uint16_t offset = ((uint16_t)vm.pc[0] << 8 | (uint16_t)vm.pc[1]);
-                vm.pc += 2;
-                vm.pc += offset;
+                uint16_t offset = ((uint16_t)(frame->pc[0]) << 8 | (uint16_t)(frame->pc[1]));
+                frame->pc += 2;
+                frame->pc += offset;
                 break;
             }
             case OP_LOOP: {
-                uint16_t offset = ((uint16_t)vm.pc[0] << 8 | (uint16_t)vm.pc[1]);
-                vm.pc += 2;
-                vm.pc -= offset;
+                uint16_t offset = ((uint16_t)(frame->pc[0]) << 8 | (uint16_t)(frame->pc[1]));
+                frame->pc += 2;
+                frame->pc -= offset;
                 break;
             }
             case OP_RETURN:
@@ -293,19 +294,15 @@ static InterpretResult_t run() {
 }
 
 InterpretResult_t interpret(const char *code) {
-    Chunk_t chunk;
-    init_chunk(&chunk);
-
-    if (!compile(code, &chunk)) {
-        free_chunk(&chunk);
+    ObjectFunc_t *func = compile(code);
+    if (func == NULL) {
         return INTERPRET_COMPILE_ERROR;
     }
+    push(DECL_OBJ_VAL(func));
+    CallFrame_t *frame = &vm.frames[vm.frame_cnt++];
+    frame->func = func;
+    frame->pc = func->chunk.code;
+    frame->slots = vm.stack;
 
-    vm.chunk = &chunk;
-    vm.pc = vm.chunk->code;
-
-    InterpretResult_t result = run();
-
-    free_chunk(&chunk);
-    return result;
+    return run();
 }

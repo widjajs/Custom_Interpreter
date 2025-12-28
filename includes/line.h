@@ -1,3 +1,6 @@
+#ifndef LINE_H
+#define LINE_H
+
 #include "../includes/utility.h"
 
 typedef struct {
@@ -15,3 +18,5 @@ int get_line(LineRunArray_t array, int offset);
 void init_line_run_array(LineRunArray_t *array);
 void write_line_array(LineRunArray_t *array, LineRun_t value);
 void free_line_array(LineRunArray_t *array);
+
+#endif

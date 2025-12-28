@@ -28,6 +28,12 @@ static void free_object(Object_t *object) {
             free(str);
             break;
         }
+        case OBJ_FUNC: {
+            ObjectFunc_t *func = (ObjectFunc_t *)object;
+            free_chunk(&func->chunk);
+            free(func);
+            break;
+        }
     }
 }
 

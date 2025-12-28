@@ -27,10 +27,22 @@ void free_value_array(ValueArray_t *array) {
     init_value_array(array);
 }
 
+void print_func(ObjectFunc_t *func) {
+    if (func->name == NULL) {
+        printf("<script>");
+        return;
+    }
+    printf("<fn %s>", func->name->chars);
+}
+
 void print_object(Value_t value) {
-    switch (OBJ_TYPE(value)) {
+    Object_t *obj = GET_OBJ_VAL(value);
+    switch (obj->type) {
         case OBJ_STR:
             printf("%s", GET_CSTR_VAL(value));
+            break;
+        case OBJ_FUNC:
+            print_func((ObjectFunc_t *)obj);
             break;
     }
 }
