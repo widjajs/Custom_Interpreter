@@ -1,36 +1,8 @@
-func bar() {
-    print "helloooooo";
-}
-func foo(a) {
-    bar();
-    print a;
-}
-foo("what a code");
-
-
-func recursive(i) {
-    if (i == 0) {
-        return;
-    }
-    print i;
-    recursive(i - 1);
-}
-recursive(10);
-
-let i = 0;
-for (;i < 10;) {
-    print i;
-    i = i + 3;
+func fib(n) {
+    if (n < 2) return n;
+    return fib(n - 2) + fib(n - 1);
 }
 
-let b = "hello world";
-let a = "bob";
-print a + " " + b;
-
-let j = 5;
-while (j > -1) {
-    print j;
-    j = j - 1;
-}
-b = 3;
-print b;
+let start = clock();
+print fib(30);
+print clock() - start;

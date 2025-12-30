@@ -5,6 +5,7 @@
 
 #include <stdarg.h>
 #include <stdint.h>
+#include <time.h>
 
 static Value_t peek(int offset);
 static void throw_runtime_error(const char *format, ...);
@@ -20,12 +21,25 @@ static void throw_runtime_error(const char *format, ...);
 
 vm_t vm;
 
+static void define_native(const char *name, NativeFunc_t func) {
+    push(DECL_OBJ_VAL(allocate_str(name, (int)strlen(name))));
+    push(DECL_OBJ_VAL(create_native(func)));
+    insert(&vm.globals, GET_STR_VAL(vm.stack[0]), vm.stack[1]);
+    pop();
+    pop();
+}
+
+static Value_t clock_native(int arg_cnt, Value_t *args) {
+    return DECL_NUM_VAL((double)clock() / CLOCKS_PER_SEC);
+}
+
 void init_vm() {
     vm.stack_top = vm.stack;
     vm.frame_cnt = 0;
     vm.objects = NULL;
     init_hash_table(&vm.strings);
     init_hash_table(&vm.globals);
+    define_native("clock", clock_native);
 }
 
 void free_vm() {
@@ -70,6 +84,13 @@ static bool call_value(Value_t callee, int arg_cnt) {
         switch (OBJ_TYPE(callee)) {
             case OBJ_FUNC:
                 return call(GET_FUNC(callee), arg_cnt);
+            case OBJ_NATIVE: {
+                NativeFunc_t native = GET_NATIVE(callee);
+                Value_t res = native(arg_cnt, vm.stack_top - arg_cnt);
+                vm.stack_top -= arg_cnt + 1;
+                push(res);
+                return true;
+            }
             default:
                 break;
         }

@@ -6,17 +6,17 @@
 #include "value.h"
 
 #define OBJ_TYPE(value) (GET_OBJ_VAL(value)->type)
+
 #define IS_STR(value) is_obj_type(value, OBJ_STR)
 #define IS_FUNC(value) is_obj_type(value, OBJ_FUNC)
+#define IS_NATIVE(value) is_obj_type(value, OBJ_NATIVE);
 
 #define GET_STR_VAL(value) ((ObjectStr_t *)GET_OBJ_VAL(value))
 #define GET_CSTR_VAL(value) (((ObjectStr_t *)GET_OBJ_VAL(value))->chars)
 #define GET_FUNC(value) ((ObjectFunc_t *)GET_OBJ_VAL(value))
+#define GET_NATIVE(value) (((ObjectNative_t *)GET_OBJ_VAL(value))->func)
 
-typedef enum {
-    OBJ_FUNC,
-    OBJ_STR,
-} ObjectType_t;
+typedef enum { OBJ_FUNC, OBJ_STR, OBJ_NATIVE } ObjectType_t;
 
 // Object_t* can safely cast to ObjectStr_t* if Object_t* pts to ObjectStr_t field
 struct Object_t {
@@ -39,11 +39,19 @@ typedef struct {
     ObjectStr_t *name;
 } ObjectFunc_t;
 
+typedef Value_t (*NativeFunc_t)(int arg_cnt, Value_t *args);
+
+typedef struct {
+    Object_t obj;
+    NativeFunc_t func;
+} ObjectNative_t;
+
 static inline bool is_obj_type(Value_t value, ObjectType_t type) {
     return IS_OBJ_VAL(value) && GET_OBJ_VAL(value)->type == type;
 }
 
 ObjectStr_t *allocate_str(const char *chars, int length);
 ObjectFunc_t *create_func();
+ObjectNative_t *create_native(NativeFunc_t func);
 
 #endif

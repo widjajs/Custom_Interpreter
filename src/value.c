@@ -44,6 +44,9 @@ void print_object(Value_t value) {
         case OBJ_FUNC:
             print_func((ObjectFunc_t *)obj);
             break;
+        case OBJ_NATIVE:
+            printf("<native fn>");
+            break;
     }
 }
 

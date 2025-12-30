@@ -47,3 +47,9 @@ ObjectFunc_t *create_func() {
     init_chunk(&new_func->chunk);
     return new_func;
 }
+
+ObjectNative_t *create_native(NativeFunc_t func) {
+    ObjectNative_t *native = ALLOCATE_OBJ(ObjectNative_t, OBJ_NATIVE);
+    native->func = func;
+    return native;
+}
