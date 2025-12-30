@@ -39,6 +39,7 @@ typedef enum {
     OP_BRANCH,
     OP_LOOP,
     OP_RETURN,
+    OP_CALL
 } OpCode_t;
 
 // Data

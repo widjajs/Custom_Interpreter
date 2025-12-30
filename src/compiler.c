@@ -23,6 +23,8 @@ static void let(bool can_assign);
 static void parse_precedence(Precedence_t prec);
 static void and_(bool can_assign);
 static void or_(bool can_assign);
+static void block();
+static void call(bool can_assign);
 
 static bool match(TokenType_t type);
 static void statement();
@@ -66,7 +68,13 @@ static void emit_bytes(uint8_t byte_1, uint8_t byte_2) {
     emit_byte(byte_2);
 }
 
+static void emit_return() {
+    emit_byte(OP_NONE);
+    emit_byte(OP_RETURN);
+}
+
 void init_compiler(Compiler_t *compiler, FuncType_t type) {
+    compiler->enclosing = cur_compiler;
     compiler->func = NULL;
     compiler->type = type;
     compiler->local_cnt = 0;
@@ -76,6 +84,10 @@ void init_compiler(Compiler_t *compiler, FuncType_t type) {
     compiler->locals = malloc(sizeof(Local_t) * compiler->local_cap);
     cur_compiler = compiler;
 
+    if (type != TYPE_SCRIPT) {
+        cur_compiler->func->name = allocate_str(parser.prev.start, parser.prev.length);
+    }
+
     // stack slot zero is claimed for VM internal use
     Local_t *local = &cur_compiler->locals[cur_compiler->local_cnt++];
     local->depth = 0;
@@ -84,7 +96,7 @@ void init_compiler(Compiler_t *compiler, FuncType_t type) {
 }
 
 static ObjectFunc_t *stop_compiler() {
-    emit_byte(OP_RETURN);
+    emit_return();
     ObjectFunc_t *func = cur_compiler->func;
 #ifdef DEBUG_PRINT_CODE
     if (!parser.has_error) {
@@ -96,13 +108,14 @@ static ObjectFunc_t *stop_compiler() {
         cur_compiler->locals = NULL;
     }
     free_hash_table(&compiler_ids);
+    cur_compiler = cur_compiler->enclosing;
     return func;
 }
 
 // ===================================================================================================
 
 ParseRule_t rules[] = {
-    [TOKEN_OPEN_PAREN] = {grouping, NULL, PREC_NONE},
+    [TOKEN_OPEN_PAREN] = {grouping, call, PREC_ACCESSOR},
     [TOKEN_CLOSE_PAREN] = {NULL, NULL, PREC_NONE},
     [TOKEN_OPEN_CURLY] = {NULL, NULL, PREC_NONE},
     [TOKEN_CLOSE_CURLY] = {NULL, NULL, PREC_NONE},
@@ -161,6 +174,10 @@ static void expression_statement() {
 }
 
 static void mark_initialized() {
+    if (cur_compiler->scope_depth == 0) {
+        // allows for recursion and globals
+        return;
+    }
     cur_compiler->locals[cur_compiler->local_cnt - 1].depth = cur_compiler->scope_depth;
 }
 
@@ -177,6 +194,22 @@ void define_let(int global_id) {
         emit_byte((global_id >> 8) & 0xFF);  // middle 8 bits
         emit_byte((global_id >> 16) & 0xFF); // front 8 bits
     }
+}
+
+static uint8_t arg_list() {
+    uint8_t arg_cnt = 0;
+    if (!check(TOKEN_CLOSE_PAREN)) {
+        do {
+            expression();
+            if (arg_cnt == 255) {
+                report_error(&parser.cur, "Cannot have more than 255 parameters");
+            }
+            arg_cnt++;
+        } while (match(TOKEN_COMMA));
+    }
+
+    consume(TOKEN_CLOSE_PAREN, "Expected ')' after parameters");
+    return arg_cnt;
 }
 
 static void let_declaration() {
@@ -205,9 +238,48 @@ static void synchronize() {
     }
 }
 
+static void function(FuncType_t type) {
+    Compiler_t compiler;
+    init_compiler(&compiler, type);
+    cur_compiler->scope_depth++;
+
+    consume(TOKEN_OPEN_PAREN, "Expected '(' after the function name");
+
+    // check for params
+    if (!check(TOKEN_CLOSE_PAREN)) {
+        do {
+            cur_compiler->func->num_params++;
+            if (cur_compiler->func->num_params > 255) {
+                report_error(&parser.cur, "Too many parameters");
+            }
+            uint8_t param = parse_let("Expected parameter name");
+            define_let(param);
+        } while (match(TOKEN_COMMA));
+    }
+
+    consume(TOKEN_CLOSE_PAREN, "Expected ')' after the functino name");
+
+    consume(TOKEN_OPEN_CURLY, "Expected '{' before function body");
+    block();
+
+    ObjectFunc_t *function = stop_compiler();
+
+    int idx = add_constant(get_cur_chunk(), DECL_OBJ_VAL(function));
+    emit_bytes(OP_CONSTANT, idx);
+}
+
+static void func_declaration() {
+    uint8_t global_id = parse_let("Expected function name");
+    mark_initialized();
+    function(TYPE_FUNCTION);
+    define_let(global_id);
+}
+
 static void declaration() {
     if (match(TOKEN_LET)) {
         let_declaration();
+    } else if (match(TOKEN_FUNC)) {
+        func_declaration();
     } else {
         statement();
     }
@@ -422,6 +494,19 @@ static void for_statement() {
     end_scope();
 }
 
+static void return_statement() {
+    if (cur_compiler->type == TYPE_SCRIPT) {
+        report_error(&parser.cur, "Cannot return from script-level code");
+    }
+    if (match(TOKEN_SEMICOLON)) {
+        emit_return();
+    } else {
+        expression();
+        consume(TOKEN_SEMICOLON, "Expected ';' after return");
+        emit_byte(OP_RETURN);
+    }
+}
+
 static void statement() {
     if (match(TOKEN_PRINT)) {
         print_statement();
@@ -435,6 +520,8 @@ static void statement() {
         cur_compiler->scope_depth++;
         block();
         end_scope();
+    } else if (match(TOKEN_RETURN)) {
+        return_statement();
     } else {
         expression_statement();
     }
@@ -673,6 +760,11 @@ static void binary(bool can_assign) {
         default:
             return;
     }
+}
+
+static void call(bool can_assign) {
+    uint8_t arg_count = arg_list();
+    emit_bytes(OP_CALL, arg_count);
 }
 
 // ===================================================================================================

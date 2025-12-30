@@ -39,7 +39,8 @@ typedef enum {
     TYPE_SCRIPT    // entire script-lvl function
 } FuncType_t;
 
-typedef struct {
+typedef struct Compiler_t {
+    struct Compiler_t *enclosing;
     ObjectFunc_t *func;
     FuncType_t type;
     Local_t *locals;

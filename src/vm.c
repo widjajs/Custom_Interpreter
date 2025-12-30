@@ -48,6 +48,36 @@ static Value_t peek(int offset) {
     return vm.stack_top[-1 - offset];
 }
 
+static bool call(ObjectFunc_t *func, int arg_cnt) {
+    if (arg_cnt != func->num_params) {
+        throw_runtime_error("Expected %d parameters but got %d", func->num_params, arg_cnt);
+        return false;
+    }
+
+    if (vm.frame_cnt == 64) {
+        throw_runtime_error("Stack overflow");
+        return false;
+    }
+    CallFrame_t *frame = &vm.frames[vm.frame_cnt++];
+    frame->func = func;
+    frame->pc = func->chunk.code;
+    frame->slots = vm.stack_top - arg_cnt - 1;
+    return true;
+}
+
+static bool call_value(Value_t callee, int arg_cnt) {
+    if (IS_OBJ_VAL(callee)) {
+        switch (OBJ_TYPE(callee)) {
+            case OBJ_FUNC:
+                return call(GET_FUNC(callee), arg_cnt);
+            default:
+                break;
+        }
+    }
+    throw_runtime_error("You attempted call something that isn't a function or class");
+    return false;
+}
+
 static void reset_stack() {
     vm.stack_top = vm.stack;
 }
@@ -59,10 +89,19 @@ static void throw_runtime_error(const char *format, ...) {
     va_end(args);
     fputs("\n", stderr);
 
-    CallFrame_t *frame = &vm.frames[vm.frame_cnt - 1];
-    size_t offset = (frame->pc - frame->func->chunk.code) - 1;
-    int line = get_line(frame->func->chunk.line_runs, offset);
-    fprintf(stderr, "[line %d] in program\n", line);
+    // print stack trace
+    for (int i = vm.frame_cnt - 1; i >= 0; i--) {
+        CallFrame_t *frame = &vm.frames[i];
+        ObjectFunc_t *func = frame->func;
+        size_t instruction = frame->pc - func->chunk.code - 1;
+        fprintf(stderr, "[line %d] in  ", get_line(frame->func->chunk.line_runs, instruction));
+        if (func->name == NULL) {
+            fprintf(stderr, "script\n");
+        } else {
+            fprintf(stderr, "%s()\n", func->name->chars);
+        }
+    }
+
     reset_stack();
 }
 
@@ -287,8 +326,27 @@ static InterpretResult_t run() {
                 frame->pc -= offset;
                 break;
             }
-            case OP_RETURN:
-                return INTERPRET_OK;
+            case OP_CALL: {
+                int arg_cnt = *frame->pc++;
+                if (!call_value(peek(arg_cnt), arg_cnt)) {
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                frame = &vm.frames[vm.frame_cnt - 1];
+                break;
+            }
+            case OP_RETURN: {
+                Value_t res = pop();
+                vm.frame_cnt--;
+                if (vm.frame_cnt == 0) {
+                    pop();
+                    return INTERPRET_OK;
+                }
+
+                vm.stack_top = frame->slots; // go back to where caller locals are
+                push(res);
+                frame = &vm.frames[vm.frame_cnt - 1]; // return to callers frame
+                break;
+            }
         }
     }
 }
@@ -299,10 +357,7 @@ InterpretResult_t interpret(const char *code) {
         return INTERPRET_COMPILE_ERROR;
     }
     push(DECL_OBJ_VAL(func));
-    CallFrame_t *frame = &vm.frames[vm.frame_cnt++];
-    frame->func = func;
-    frame->pc = func->chunk.code;
-    frame->slots = vm.stack;
+    call_value(DECL_OBJ_VAL(func), 0); // i.e. main()
 
     return run();
 }

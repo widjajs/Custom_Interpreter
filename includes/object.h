@@ -11,7 +11,7 @@
 
 #define GET_STR_VAL(value) ((ObjectStr_t *)GET_OBJ_VAL(value))
 #define GET_CSTR_VAL(value) (((ObjectStr_t *)GET_OBJ_VAL(value))->chars)
-#define GET_FUNC(value) ((ObjectStr_t *)GET_OBJ_VAL(value))
+#define GET_FUNC(value) ((ObjectFunc_t *)GET_OBJ_VAL(value))
 
 typedef enum {
     OBJ_FUNC,
