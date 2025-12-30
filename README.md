@@ -25,6 +25,7 @@ This project extends the core ideas from the book by adding variable scoping and
 - **Debugging support**:
   - Bytecode disassembly
   - Stack trace output (via debug flags)
+- **Functions**
 
 ---
 
@@ -38,8 +39,6 @@ The interpreter closely follows the design patterns described in *Crafting Inter
 - A **stack-based VM** with dynamically typed values
 - **Variable declaration and scope management**
 - Control-flow constructs implemented at the bytecode level
-
-Additional features such as scoped variables and looping constructs (`while`, `for`) were implemented based on later chapters of the book.
 
 ---
 
