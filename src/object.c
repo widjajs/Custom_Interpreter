@@ -45,6 +45,7 @@ ObjectFunc_t *create_func() {
     new_func->num_params = 0;
     new_func->name = NULL;
     init_chunk(&new_func->chunk);
+    new_func->upvalue_cnt = 0;
     return new_func;
 }
 
@@ -52,4 +53,23 @@ ObjectNative_t *create_native(NativeFunc_t func) {
     ObjectNative_t *native = ALLOCATE_OBJ(ObjectNative_t, OBJ_NATIVE);
     native->func = func;
     return native;
+}
+
+ObjectClosure_t *create_closure(ObjectFunc_t *func) {
+    ObjectUpvalue_t **upvalues = ALLOCATE(ObjectUpvalue_t *, func->upvalue_cnt);
+    for (int i = 0; i < func->upvalue_cnt; i++) {
+        upvalues[i] = NULL;
+    }
+
+    ObjectClosure_t *closure = ALLOCATE_OBJ(ObjectClosure_t, OBJ_CLOSURE);
+    closure->func = func;
+    closure->upvalues = upvalues;
+    closure->upvalue_cnt = func->upvalue_cnt;
+    return closure;
+}
+
+ObjectUpvalue_t *create_upvalue(Value_t *slot) {
+    ObjectUpvalue_t *upvalue = ALLOCATE_OBJ(ObjectUpvalue_t, OBJ_UPVALUE);
+    upvalue->location = slot;
+    return upvalue;
 }

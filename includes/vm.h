@@ -4,9 +4,10 @@
 #include "chunk.h"
 #include "compiler.h"
 #include "hash_table.h"
+#include "object.h"
 
 typedef struct {
-    ObjectFunc_t *func;
+    ObjectClosure_t *closure;
     uint8_t *pc;
     Value_t *slots; // actually pts to first frame slot a func can use
 } CallFrame_t;

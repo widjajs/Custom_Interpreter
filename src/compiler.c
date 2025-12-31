@@ -2,6 +2,8 @@
 #include "../includes/hash_table.h"
 #include "../includes/object.h"
 
+#include <stdint.h>
+
 Parser_t parser;
 Chunk_t *cur_chunk = NULL;
 Compiler_t *cur_compiler = NULL;
@@ -265,7 +267,13 @@ static void function(FuncType_t type) {
     ObjectFunc_t *function = stop_compiler();
 
     int idx = add_constant(get_cur_chunk(), DECL_OBJ_VAL(function));
-    emit_bytes(OP_CONSTANT, idx);
+    emit_bytes(OP_CLOSURE, idx);
+
+    // closure variables
+    for (int i = 0; i < function->upvalue_cnt; i++) {
+        emit_byte(compiler.upvalues[i].is_local ? 1 : 0);
+        emit_byte(compiler.upvalues[i].idx);
+    }
 }
 
 static void func_declaration() {
@@ -557,9 +565,9 @@ static int constant_identifier(Chunk_t *chunk, HashTable_t *ids, ObjectStr_t *na
     return idx;
 }
 
-static int resolve_local(Token_t *name) {
-    for (int i = cur_compiler->local_cnt - 1; i >= 0; i--) {
-        Local_t *local = &cur_compiler->locals[i];
+static int resolve_local(Compiler_t *compiler, Token_t *name) {
+    for (int i = compiler->local_cnt - 1; i >= 0; i--) {
+        Local_t *local = &compiler->locals[i];
         if (identifiers_equals(name, &local->name)) {
             return i;
         }
@@ -570,26 +578,80 @@ static int resolve_local(Token_t *name) {
     return -1;
 }
 
-static void named_let(Token_t name, bool can_assign) {
-    ObjectStr_t *global_name = allocate_str(parser.prev.start, parser.prev.length);
-    int operand = resolve_local(&name);
-    bool is_local = true;
-    if (operand == -1) {
-        operand = constant_identifier(get_cur_chunk(), &compiler_ids, global_name);
-        is_local = false;
+static int add_upvalue(Compiler_t *compiler, uint8_t idx, bool is_local) {
+    int upvalue_cnt = compiler->func->upvalue_cnt;
+
+    // check if upvalue already been declared
+    for (int i = 0; i < upvalue_cnt; i++) {
+        Upvalue_t *upvalue = &compiler->upvalues[i];
+        if (upvalue->idx == idx && upvalue->is_local == is_local) {
+            return i;
+        }
     }
+
+    if (upvalue_cnt == 256) {
+        report_error(&parser.cur, "You have too many closure variables in a function");
+        return 0;
+    }
+
+    compiler->upvalues[upvalue_cnt].is_local = is_local;
+    compiler->upvalues[upvalue_cnt].idx = idx;
+    return compiler->func->upvalue_cnt++;
+}
+
+static int resolve_upvalue(Compiler_t *compiler, Token_t *name) {
+    if (compiler->enclosing == NULL) {
+        // not upvalue and from prev check not local so prbly global
+        return -1;
+    }
+
+    int local = resolve_local(compiler->enclosing, name);
+    if (local != -1) {
+        return add_upvalue(compiler, (uint8_t)local, true);
+    }
+
+    int upvalue = resolve_upvalue(compiler->enclosing, name);
+    if (upvalue != -1) {
+        return add_upvalue(compiler, (uint8_t)upvalue, false);
+    }
+
+    return -1;
+}
+
+static void named_let(Token_t name, bool can_assign) {
+    uint8_t get_op;
+    uint8_t set_op;
+
+    int operand = resolve_local(cur_compiler, &name);
+    if (operand != -1) { // local
+        get_op = OP_GET_LOCAL;
+        set_op = OP_SET_LOCAL;
+    } else if ((operand = resolve_upvalue(cur_compiler, &name)) != -1) { // upvalue
+        get_op = OP_GET_UPVALUE;
+        set_op = OP_SET_UPVALUE;
+    } else {
+        ObjectStr_t *global_name = allocate_str(parser.prev.start, parser.prev.length);
+        operand = constant_identifier(get_cur_chunk(), &compiler_ids, global_name);
+        get_op = OP_GET_GLOBAL;
+        set_op = OP_SET_GLOBAL;
+    }
+
     if (can_assign && match(TOKEN_EQUAL)) {
         expression();
-        if (is_local) {
-            emit_let_opcode(OP_SET_LOCAL, OP_SET_LOCAL_LONG, operand);
+        if (set_op == OP_SET_GLOBAL) {
+            emit_let_opcode(set_op, OP_SET_GLOBAL_LONG, operand);
+        } else if (set_op == OP_SET_LOCAL) {
+            emit_let_opcode(set_op, OP_SET_LOCAL_LONG, operand);
         } else {
-            emit_let_opcode(OP_SET_GLOBAL, OP_SET_GLOBAL_LONG, operand);
+            emit_bytes(OP_SET_UPVALUE, operand);
         }
     } else {
-        if (is_local) {
-            emit_let_opcode(OP_GET_LOCAL, OP_GET_LOCAL_LONG, operand);
+        if (get_op == OP_GET_GLOBAL) {
+            emit_let_opcode(get_op, OP_GET_GLOBAL_LONG, operand);
+        } else if (get_op == OP_GET_LOCAL) {
+            emit_let_opcode(get_op, OP_GET_LOCAL_LONG, operand);
         } else {
-            emit_let_opcode(OP_GET_GLOBAL, OP_GET_GLOBAL_LONG, operand);
+            emit_bytes(OP_GET_UPVALUE, operand);
         }
     }
 }

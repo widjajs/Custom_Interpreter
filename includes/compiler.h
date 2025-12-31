@@ -34,6 +34,11 @@ typedef struct {
     int depth;
 } Local_t;
 
+typedef struct {
+    uint8_t idx;
+    bool is_local;
+} Upvalue_t;
+
 typedef enum {
     TYPE_FUNCTION, // user-defined function
     TYPE_SCRIPT    // entire script-lvl function
@@ -46,6 +51,7 @@ typedef struct Compiler_t {
     Local_t *locals;
     int local_cnt;
     int local_cap;
+    Upvalue_t upvalues[256];
     int scope_depth;
 } Compiler_t;
 

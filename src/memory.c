@@ -39,6 +39,17 @@ static void free_object(Object_t *object) {
             free(native);
             break;
         }
+        case OBJ_CLOSURE: {
+            ObjectClosure_t *closure = (ObjectClosure_t *)object;
+            free(closure->upvalues);
+            free(closure);
+            break;
+        }
+        case OBJ_UPVALUE: {
+            ObjectUpvalue_t *upvalue = (ObjectUpvalue_t *)object;
+            free(upvalue);
+            break;
+        }
     }
 }
 

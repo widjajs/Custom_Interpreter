@@ -93,7 +93,26 @@ int disassemble_instruction(Chunk_t *chunk, int offset) {
             return branch_instruction("OP_LOOP", -1, chunk, offset);
         case OP_CALL:
             return byte_instruction_long("OP_CALL", chunk, offset);
+        case OP_CLOSURE: {
+            offset++;
+            uint8_t constant = chunk->code[offset++];
+            printf("%-16s %4d ", "OP_CLOSURE", constant);
+            print_value(chunk->constants.values[constant]);
+            printf("\n");
 
+            ObjectFunc_t *func = GET_FUNC(chunk->constants.values[constant]);
+            for (int j = 0; j < func->upvalue_cnt; j++) {
+                int isLocal = chunk->code[offset++];
+                int index = chunk->code[offset++];
+                printf("%04d | %s %d\n", offset - 2, isLocal ? "local" : "upvalue", index);
+
+                return offset;
+            }
+        }
+        case OP_GET_UPVALUE:
+            return byte_instruction_long("OP_GET_UPVALUE", chunk, offset);
+        case OP_SET_UPVALUE:
+            return byte_instruction_long("OP_SET_UPVALUE", chunk, offset);
         default:
             printf("Unknown OpCode %d\n", instruction);
             return offset + 1;

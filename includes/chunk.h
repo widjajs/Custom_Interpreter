@@ -39,7 +39,10 @@ typedef enum {
     OP_BRANCH,
     OP_LOOP,
     OP_RETURN,
-    OP_CALL
+    OP_CALL,
+    OP_CLOSURE,
+    OP_GET_UPVALUE,
+    OP_SET_UPVALUE
 } OpCode_t;
 
 // Data
