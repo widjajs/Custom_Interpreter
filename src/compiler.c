@@ -95,6 +95,7 @@ void init_compiler(Compiler_t *compiler, FuncType_t type) {
     local->depth = 0;
     local->name.start = "";
     local->name.length = 0;
+    local->is_captured = false;
 }
 
 static ObjectFunc_t *stop_compiler() {
@@ -316,7 +317,11 @@ static void end_scope() {
     // clean up locals at the end of the block
     while (cur_compiler->local_cnt > 0 &&
            cur_compiler->locals[cur_compiler->local_cnt - 1].depth > cur_compiler->scope_depth) {
-        emit_byte(OP_POP);
+        if (cur_compiler->locals[cur_compiler->local_cnt - 1].is_captured) {
+            emit_byte(OP_CLOSE_UPVALUE); // promote to heap
+        } else {
+            emit_byte(OP_POP);
+        }
         cur_compiler->local_cnt--;
     }
 }
@@ -607,6 +612,7 @@ static int resolve_upvalue(Compiler_t *compiler, Token_t *name) {
 
     int local = resolve_local(compiler->enclosing, name);
     if (local != -1) {
+        compiler->enclosing->locals[local].is_captured = true;
         return add_upvalue(compiler, (uint8_t)local, true);
     }
 
@@ -695,6 +701,7 @@ static void add_local(Token_t token) {
     Local_t *local = &cur_compiler->locals[cur_compiler->local_cnt++];
     local->name = token;
     local->depth = -1;
+    local->is_captured = false;
 }
 
 static bool identifiers_equals(Token_t *a, Token_t *b) {

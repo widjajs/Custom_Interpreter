@@ -102,6 +102,8 @@ static bool call_value(Value_t callee, int arg_cnt) {
 
 static void reset_stack() {
     vm.stack_top = vm.stack;
+    vm.frame_cnt = 0;
+    vm.open_upvalues = NULL;
 }
 
 static void throw_runtime_error(const char *format, ...) {
@@ -147,8 +149,36 @@ static void concatenate() {
 }
 
 static ObjectUpvalue_t *capture_upvalue(Value_t *local) {
+    ObjectUpvalue_t *prev_upvalue = NULL;
+    ObjectUpvalue_t *cur_upvalue = vm.open_upvalues;
+
+    while (cur_upvalue != NULL && cur_upvalue->location > local) {
+        prev_upvalue = cur_upvalue;
+        cur_upvalue = cur_upvalue->next;
+    }
+
+    if (cur_upvalue != NULL && cur_upvalue->location == local) {
+        return cur_upvalue;
+    }
+
     ObjectUpvalue_t *new_upvalue = create_upvalue(local);
+    new_upvalue->next = cur_upvalue;
+
+    if (prev_upvalue == NULL) {
+        vm.open_upvalues = new_upvalue;
+    } else {
+        prev_upvalue->next = new_upvalue;
+    }
     return new_upvalue;
+}
+
+static void close_upvalues(Value_t *last) {
+    while (vm.open_upvalues != NULL && vm.open_upvalues->location >= last) {
+        ObjectUpvalue_t *upvalue = vm.open_upvalues;
+        upvalue->closed = *upvalue->location;
+        upvalue->location = &upvalue->closed;
+        vm.open_upvalues = upvalue->next;
+    }
 }
 
 static InterpretResult_t run() {
@@ -383,8 +413,14 @@ static InterpretResult_t run() {
                 *frame->closure->upvalues[idx]->location = peek(0);
                 break;
             }
+            case OP_CLOSE_UPVALUE: {
+                close_upvalues(vm.stack - 1);
+                pop();
+                break;
+            }
             case OP_RETURN: {
                 Value_t res = pop();
+                close_upvalues(frame->slots);
                 vm.frame_cnt--;
                 if (vm.frame_cnt == 0) {
                     pop();

@@ -49,9 +49,11 @@ typedef struct {
     NativeFunc_t func;
 } ObjectNative_t;
 
-typedef struct {
+typedef struct ObjectUpvalue_t {
     Object_t obj;
     Value_t *location;
+    Value_t closed;
+    struct ObjectUpvalue_t *next;
 } ObjectUpvalue_t;
 
 typedef struct {

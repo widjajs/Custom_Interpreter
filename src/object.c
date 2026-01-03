@@ -71,5 +71,7 @@ ObjectClosure_t *create_closure(ObjectFunc_t *func) {
 ObjectUpvalue_t *create_upvalue(Value_t *slot) {
     ObjectUpvalue_t *upvalue = ALLOCATE_OBJ(ObjectUpvalue_t, OBJ_UPVALUE);
     upvalue->location = slot;
+    upvalue->next = NULL;
+    upvalue->closed = DECL_NONE_VAL;
     return upvalue;
 }

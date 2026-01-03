@@ -22,6 +22,7 @@ typedef struct {
     Object_t *objects;
     CallFrame_t frames[64];
     int frame_cnt;
+    ObjectUpvalue_t *open_upvalues;
 } vm_t;
 
 typedef enum { INTERPRET_OK, INTERPRET_COMPILE_ERROR, INTERPRET_RUNTIME_ERROR } InterpretResult_t;

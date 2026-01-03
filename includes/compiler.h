@@ -32,6 +32,7 @@ typedef struct {
 typedef struct {
     Token_t name; // variable name
     int depth;
+    bool is_captured; // determines if we move var to heap after out of scope
 } Local_t;
 
 typedef struct {

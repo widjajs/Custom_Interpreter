@@ -104,15 +104,16 @@ int disassemble_instruction(Chunk_t *chunk, int offset) {
             for (int j = 0; j < func->upvalue_cnt; j++) {
                 int isLocal = chunk->code[offset++];
                 int index = chunk->code[offset++];
-                printf("%04d | %s %d\n", offset - 2, isLocal ? "local" : "upvalue", index);
-
-                return offset;
+                printf("%04d    | %-16s %d\n", offset - 2, isLocal ? "local" : "upvalue", index);
             }
+            return offset;
         }
         case OP_GET_UPVALUE:
             return byte_instruction_long("OP_GET_UPVALUE", chunk, offset);
         case OP_SET_UPVALUE:
             return byte_instruction_long("OP_SET_UPVALUE", chunk, offset);
+        case OP_CLOSE_UPVALUE:
+            return standard_instruction("OP_CLOSE_UPVALUE", offset);
         default:
             printf("Unknown OpCode %d\n", instruction);
             return offset + 1;
