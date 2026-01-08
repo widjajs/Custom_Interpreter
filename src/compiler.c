@@ -582,10 +582,10 @@ static int resolve_local(Compiler_t *compiler, Token_t *name) {
     for (int i = compiler->local_cnt - 1; i >= 0; i--) {
         Local_t *local = &compiler->locals[i];
         if (identifiers_equals(name, &local->name)) {
+            if (local->depth == -1) {
+                report_error(&parser.prev, "Can't read local variable when it's being initialized");
+            }
             return i;
-        }
-        if (local->depth == -1) {
-            report_error(&parser.prev, "Can't read local variable when it's being initialized");
         }
     }
     return -1;

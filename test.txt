@@ -7,3 +7,15 @@ func outer() {
 }
 let closure = outer();
 closure();
+
+let a = 1;
+let b = 2;
+print a;
+print b;
+
+for (let i = 0; i < 10; i = i + 1) {
+    print a + b;
+    let c = a + b;
+    a = b;
+    b = c;
+}
