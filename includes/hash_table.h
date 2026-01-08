@@ -1,8 +1,6 @@
 #ifndef HASH_TABLE_H
 #define HASH_TABLE_H
 
-#include "memory.h"
-#include "object.h"
 #include "utility.h"
 #include "value.h"
 

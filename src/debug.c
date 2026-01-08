@@ -9,6 +9,7 @@ int constant_long_instruction(const char *name, Chunk_t *chunk, int offset);
 int byte_instruction(const char *name, Chunk_t *chunk, int offset);
 int byte_instruction_long(const char *name, Chunk_t *chunk, int offset);
 int branch_instruction(const char *name, int sign, Chunk_t *chunk, int offset);
+int invoke_instruction(const char *name, Chunk_t *chunk, int offset);
 
 // given machine code -> output list of instructions
 void disassemble_chunk(Chunk_t *chunk, const char *name) {
@@ -114,6 +115,20 @@ int disassemble_instruction(Chunk_t *chunk, int offset) {
             return byte_instruction("OP_SET_UPVALUE", chunk, offset);
         case OP_CLOSE_UPVALUE:
             return standard_instruction("OP_CLOSE_UPVALUE", offset);
+        case OP_CLASS:
+            return constant_instruction("OP_CLASS", chunk, offset);
+        case OP_CLASS_LONG:
+            return constant_long_instruction("OP_CLASS_LONG", chunk, offset);
+        case OP_GET_PROPERTY:
+            return constant_instruction("OP_GET_PROPERTY", chunk, offset);
+        case OP_SET_PROPERTY:
+            return constant_instruction("OP_SET_PROPERTY", chunk, offset);
+        case OP_METHOD:
+            return constant_instruction("OP_METHOD", chunk, offset);
+        case OP_METHOD_LONG:
+            return constant_long_instruction("OP_METHOD", chunk, offset);
+        case OP_INVOKE:
+            return invoke_instruction("OP_INVOKE", chunk, offset);
         default:
             printf("Unknown OpCode %d\n", instruction);
             return offset + 1;
@@ -167,4 +182,13 @@ int byte_instruction_long(const char *name, Chunk_t *chunk, int offset) {
     // print left-aligned 16 char string then minimum 4-width integer
     printf("%-16s %4d\n", name, idx);
     return offset + 4;
+}
+
+int invoke_instruction(const char *name, Chunk_t *chunk, int offset) {
+    uint8_t constant = chunk->code[offset + 1];
+    uint8_t argCount = chunk->code[offset + 2];
+    printf("%-16s (%d args) %4d '", name, argCount, constant);
+    print_value(chunk->constants.values[constant]);
+    printf("'\n");
+    return offset + 3;
 }

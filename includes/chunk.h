@@ -43,7 +43,14 @@ typedef enum {
     OP_CLOSURE,
     OP_GET_UPVALUE,
     OP_SET_UPVALUE,
-    OP_CLOSE_UPVALUE
+    OP_CLOSE_UPVALUE,
+    OP_CLASS,
+    OP_CLASS_LONG,
+    OP_GET_PROPERTY,
+    OP_SET_PROPERTY,
+    OP_METHOD,
+    OP_METHOD_LONG,
+    OP_INVOKE
 } OpCode_t;
 
 // Data

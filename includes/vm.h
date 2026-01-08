@@ -5,6 +5,7 @@
 #include "compiler.h"
 #include "hash_table.h"
 #include "object.h"
+#include "value.h"
 
 typedef struct {
     ObjectClosure_t *closure;
@@ -28,6 +29,7 @@ typedef struct {
     Object_t **grey_stack;
     size_t bytes_allocated;
     size_t next_GC;
+    ObjectStr_t *init_str;
 } vm_t;
 
 typedef enum { INTERPRET_OK, INTERPRET_COMPILE_ERROR, INTERPRET_RUNTIME_ERROR } InterpretResult_t;

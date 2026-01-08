@@ -53,6 +53,15 @@ void print_object(Value_t value) {
         case OBJ_UPVALUE:
             printf("upvalue");
             break;
+        case OBJ_CLASS:
+            printf("%s", GET_CLASS(value)->name->chars);
+            break;
+        case OBJ_INSTANCE:
+            printf("%s instance", GET_INSTANCE(value)->class_->name->chars);
+            break;
+        case OBJ_BOUND_METHOD:
+            print_func(GET_BOUND_METHOD(value)->method->func);
+            break;
     }
 }
 

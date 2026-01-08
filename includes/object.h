@@ -2,6 +2,7 @@
 #define OBJECT_H
 
 #include "chunk.h"
+#include "hash_table.h"
 #include "utility.h"
 #include "value.h"
 
@@ -9,16 +10,31 @@
 
 #define IS_STR(value) is_obj_type(value, OBJ_STR)
 #define IS_FUNC(value) is_obj_type(value, OBJ_FUNC)
-#define IS_NATIVE(value) is_obj_type(value, OBJ_NATIVE);
-#define IS_CLOSURE(value) is_obj_type(value, OBJ_CLOSURE);
+#define IS_NATIVE(value) is_obj_type(value, OBJ_NATIVE)
+#define IS_CLOSURE(value) is_obj_type(value, OBJ_CLOSURE)
+#define IS_CLASS(value) is_obj_type(value, OBJ_CLASS)
+#define IS_INSTANCE(value) is_obj_type(value, OBJ_INSTANCE)
+#define IS_BOUND_METHOD(value) is_obj_type(value, OBJ_BOUND_METHOD)
 
 #define GET_STR_VAL(value) ((ObjectStr_t *)GET_OBJ_VAL(value))
 #define GET_CSTR_VAL(value) (((ObjectStr_t *)GET_OBJ_VAL(value))->chars)
 #define GET_FUNC(value) ((ObjectFunc_t *)GET_OBJ_VAL(value))
 #define GET_NATIVE(value) (((ObjectNative_t *)GET_OBJ_VAL(value))->func)
 #define GET_CLOSURE(value) ((ObjectClosure_t *)GET_OBJ_VAL(value))
+#define GET_CLASS(value) ((ObjectClass_t *)GET_OBJ_VAL(value))
+#define GET_INSTANCE(value) ((ObjectInstance_t *)GET_OBJ_VAL(value))
+#define GET_BOUND_METHOD(value) ((ObjectBoundMethod_t *)GET_OBJ_VAL(value))
 
-typedef enum { OBJ_FUNC, OBJ_STR, OBJ_NATIVE, OBJ_CLOSURE, OBJ_UPVALUE } ObjectType_t;
+typedef enum {
+    OBJ_FUNC,
+    OBJ_STR,
+    OBJ_NATIVE,
+    OBJ_CLOSURE,
+    OBJ_UPVALUE,
+    OBJ_CLASS,
+    OBJ_INSTANCE,
+    OBJ_BOUND_METHOD
+} ObjectType_t;
 
 // Object_t* can safely cast to ObjectStr_t* if Object_t* pts to ObjectStr_t field
 struct Object_t {
@@ -64,6 +80,24 @@ typedef struct {
     int upvalue_cnt;
 } ObjectClosure_t;
 
+typedef struct {
+    Object_t object;
+    ObjectStr_t *name;
+    HashTable_t methods;
+} ObjectClass_t;
+
+typedef struct {
+    Object_t object;
+    ObjectClass_t *class_;
+    HashTable_t fields;
+} ObjectInstance_t;
+
+typedef struct {
+    Object_t object;
+    Value_t receiver;
+    ObjectClosure_t *method;
+} ObjectBoundMethod_t;
+
 static inline bool is_obj_type(Value_t value, ObjectType_t type) {
     return IS_OBJ_VAL(value) && GET_OBJ_VAL(value)->type == type;
 }
@@ -73,5 +107,8 @@ ObjectFunc_t *create_func();
 ObjectNative_t *create_native(NativeFunc_t func);
 ObjectClosure_t *create_closure(ObjectFunc_t *func);
 ObjectUpvalue_t *create_upvalue(Value_t *slot);
+ObjectClass_t *create_class(ObjectStr_t *name);
+ObjectInstance_t *create_instance(ObjectClass_t *class_);
+ObjectBoundMethod_t *create_bound_method(Value_t receiver, ObjectClosure_t *method);
 
 #endif

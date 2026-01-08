@@ -72,6 +72,23 @@ static void free_object(Object_t *object) {
             free(upvalue);
             break;
         }
+        case OBJ_CLASS: {
+            ObjectClass_t *class_ = (ObjectClass_t *)object;
+            free_hash_table(&class_->methods);
+            free(class_);
+            break;
+        }
+        case OBJ_INSTANCE: {
+            ObjectInstance_t *instance = (ObjectInstance_t *)object;
+            free_hash_table(&instance->fields);
+            free(instance);
+            break;
+        }
+        case OBJ_BOUND_METHOD: {
+            ObjectBoundMethod_t *bound = (ObjectBoundMethod_t *)object;
+            free(bound);
+            break;
+        }
     }
 }
 
@@ -118,6 +135,7 @@ void mark_roots() {
     }
     mark_table(&vm.globals); // mark globals
     mark_compiler_roots();
+    mark_object((Object_t *)vm.init_str);
 }
 
 void mark_array(ValueArray_t *array) {
@@ -155,8 +173,23 @@ void mark_black(Object_t *object) {
             }
             break;
         }
-        default:
+        case OBJ_CLASS: {
+            ObjectClass_t *class_ = (ObjectClass_t *)object;
+            mark_object((Object_t *)class_->name);
+            mark_table(&class_->methods);
             break;
+        }
+        case OBJ_INSTANCE: {
+            ObjectInstance_t *instance = (ObjectInstance_t *)object;
+            mark_object((Object_t *)instance->class_);
+            mark_table(&instance->fields);
+            break;
+        }
+        case OBJ_BOUND_METHOD: {
+            ObjectBoundMethod_t *bound = (ObjectBoundMethod_t *)object;
+            mark_value(bound->receiver);
+            mark_object((Object_t *)bound->method);
+        }
     }
 }
 

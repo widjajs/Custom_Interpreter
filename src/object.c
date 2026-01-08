@@ -1,4 +1,5 @@
 #include "../includes/object.h"
+#include "../includes/memory.h"
 #include "../includes/value.h"
 #include "../includes/vm.h"
 
@@ -81,4 +82,25 @@ ObjectUpvalue_t *create_upvalue(Value_t *slot) {
     upvalue->next = NULL;
     upvalue->closed = DECL_NONE_VAL;
     return upvalue;
+}
+
+ObjectClass_t *create_class(ObjectStr_t *name) {
+    ObjectClass_t *new_class = ALLOCATE_OBJ(ObjectClass_t, OBJ_CLASS);
+    new_class->name = name;
+    init_hash_table(&new_class->methods);
+    return new_class;
+}
+
+ObjectInstance_t *create_instance(ObjectClass_t *class_) {
+    ObjectInstance_t *new_instance = ALLOCATE_OBJ(ObjectInstance_t, OBJ_INSTANCE);
+    new_instance->class_ = class_;
+    init_hash_table(&new_instance->fields);
+    return new_instance;
+}
+
+ObjectBoundMethod_t *create_bound_method(Value_t receiver, ObjectClosure_t *method) {
+    ObjectBoundMethod_t *new_bound = ALLOCATE_OBJ(ObjectBoundMethod_t, OBJ_BOUND_METHOD);
+    new_bound->receiver = receiver;
+    new_bound->method = method;
+    return new_bound;
 }

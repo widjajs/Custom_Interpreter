@@ -46,13 +46,17 @@ void init_vm() {
     init_hash_table(&vm.strings);
     init_hash_table(&vm.globals);
 
+    vm.init_str = NULL;
+    vm.init_str = allocate_str("init", 4);
+
     define_native("clock", clock_native);
 }
 
 void free_vm() {
-    free_objects();
     free_hash_table(&vm.strings);
     free_hash_table(&vm.globals);
+    vm.init_str = NULL;
+    free_objects();
 }
 
 void push(Value_t value) {
@@ -98,6 +102,24 @@ static bool call_value(Value_t callee, int arg_cnt) {
                 vm.stack_top -= arg_cnt + 1;
                 push(res);
                 return true;
+            }
+            case OBJ_CLASS: {
+                ObjectClass_t *class_ = GET_CLASS(callee);
+                vm.stack_top[-arg_cnt - 1] = DECL_OBJ_VAL(create_instance(class_));
+                // constructor check
+                Value_t *constructor = get(&class_->methods, vm.init_str);
+                if (constructor) {
+                    return call(GET_CLOSURE(*constructor), arg_cnt);
+                } else if (arg_cnt != 0) {
+                    throw_runtime_error("Class without initializer expected 0 arguments but got %d",
+                                        arg_cnt);
+                }
+                return true;
+            }
+            case OBJ_BOUND_METHOD: {
+                ObjectBoundMethod_t *bound = GET_BOUND_METHOD(callee);
+                vm.stack_top[-arg_cnt - 1] = bound->receiver;
+                return call(bound->method, arg_cnt);
             }
             default:
                 break;
@@ -188,6 +210,50 @@ static void close_upvalues(Value_t *last) {
         upvalue->location = &upvalue->closed;
         vm.open_upvalues = upvalue->next;
     }
+}
+
+static void define_method(ObjectStr_t *name) {
+    Value_t method = peek(0);
+    ObjectClass_t *class_ = GET_CLASS(peek(1));
+    insert(&class_->methods, name, method);
+    pop();
+}
+
+static bool bind_method(ObjectClass_t *class_, ObjectStr_t *name) {
+    Value_t *method = get(&class_->methods, name);
+    if (method == NULL) {
+        throw_runtime_error("Undefined field '%s'", name->chars);
+        return false;
+    }
+    ObjectBoundMethod_t *bound = create_bound_method(peek(0), GET_CLOSURE(*method));
+    pop();
+    push(DECL_OBJ_VAL(bound));
+    return true;
+}
+
+static bool invoke_from_class(ObjectClass_t *class_, ObjectStr_t *name, int arg_cnt) {
+    Value_t *method = get(&class_->methods, name);
+    if (!method) {
+        throw_runtime_error("'%s' is undefined", name->chars);
+        return false;
+    }
+    return call(GET_CLOSURE(*method), arg_cnt);
+}
+
+static bool invoke(ObjectStr_t *name, int arg_cnt) {
+    Value_t receiver = peek(arg_cnt);
+    if (!IS_INSTANCE(receiver)) {
+        throw_runtime_error("You tried to invoke a method from something that wasn't an instance");
+        return false;
+    }
+
+    ObjectInstance_t *instance = GET_INSTANCE(receiver);
+    Value_t *value = get(&instance->fields, name);
+    if (value) {
+        vm.stack_top[-arg_cnt - 1] = *value;
+        return call_value(*value, arg_cnt);
+    }
+    return invoke_from_class(instance->class_, name, arg_cnt);
 }
 
 static InterpretResult_t run() {
@@ -425,6 +491,62 @@ static InterpretResult_t run() {
             case OP_CLOSE_UPVALUE: {
                 close_upvalues(vm.stack_top - 1);
                 pop();
+                break;
+            }
+            case OP_CLASS: {
+                push(DECL_OBJ_VAL(create_class(READ_STRING())));
+                break;
+            }
+            case OP_CLASS_LONG: {
+                push(DECL_OBJ_VAL(create_class(READ_STRING_LONG())));
+                break;
+            }
+            case OP_GET_PROPERTY: {
+                if (!IS_INSTANCE(peek(0))) {
+                    throw_runtime_error("Only instances of a class have fields");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                ObjectInstance_t *instance = GET_INSTANCE(peek(0));
+                ObjectStr_t *name = READ_STRING();
+                Value_t *value = get(&instance->fields, name);
+                if (value) {
+                    pop();
+                    push(*value);
+                    break;
+                }
+                if (!bind_method(instance->class_, name)) {
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                break;
+            }
+            case OP_SET_PROPERTY: {
+                if (!IS_INSTANCE(peek(1))) {
+                    throw_runtime_error("Only instances can have fields");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                ObjectInstance_t *instance = GET_INSTANCE(peek(1));
+                insert(&instance->fields, READ_STRING(), peek(0));
+
+                Value_t value = pop();
+                pop();
+                push(value);
+                break;
+            }
+            case OP_METHOD: {
+                define_method(READ_STRING());
+                break;
+            }
+            case OP_METHOD_LONG: {
+                define_method(READ_STRING_LONG());
+                break;
+            }
+            case OP_INVOKE: {
+                ObjectStr_t *method = READ_STRING();
+                int arg_cnt = READ_BYTE();
+                if (!invoke(method, arg_cnt)) {
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                frame = &vm.frames[vm.frame_cnt - 1];
                 break;
             }
             case OP_RETURN: {

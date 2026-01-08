@@ -41,8 +41,10 @@ typedef struct {
 } Upvalue_t;
 
 typedef enum {
-    TYPE_FUNCTION, // user-defined function
-    TYPE_SCRIPT    // entire script-lvl function
+    TYPE_FUNCTION,   // user-defined function
+    TYPE_SCRIPT,     // entire script-lvl function
+    TYPE_METHOD,     // class function method
+    TYPE_INITIAZLIER // constructor method
 } FuncType_t;
 
 typedef struct Compiler_t {
@@ -55,6 +57,11 @@ typedef struct Compiler_t {
     Upvalue_t upvalues[256];
     int scope_depth;
 } Compiler_t;
+
+typedef struct ClassCompiler_t {
+    struct ClassCompiler_t *enclosing;
+    Token_t name;
+} ClassCompiler_t;
 
 ObjectFunc_t *compile(const char *code);
 void mark_compiler_roots();

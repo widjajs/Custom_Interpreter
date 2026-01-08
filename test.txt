@@ -1,21 +1,11 @@
-func outer() {
-    let x = "outside";
-    func inner() {
-        print x;
+class test {
+    init() {
+        func f() {
+            print "Not a function";
+        }
+        this.field = f;
     }
-    return inner;
 }
-let closure = outer();
-closure();
 
-let a = 1;
-let b = 2;
-print a;
-print b;
-
-for (let i = 0; i < 10; i = i + 1) {
-    print a + b;
-    let c = a + b;
-    a = b;
-    b = c;
-}
+let a = test();
+a.field();

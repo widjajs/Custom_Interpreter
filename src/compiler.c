@@ -1,5 +1,6 @@
 #include "../includes/compiler.h"
 #include "../includes/hash_table.h"
+#include "../includes/memory.h"
 #include "../includes/object.h"
 
 #include <stdint.h>
@@ -7,6 +8,7 @@
 Parser_t parser;
 Chunk_t *cur_chunk = NULL;
 Compiler_t *cur_compiler = NULL;
+ClassCompiler_t *cur_class = NULL;
 
 static void go_next();
 static void expression();
@@ -27,11 +29,17 @@ static void and_(bool can_assign);
 static void or_(bool can_assign);
 static void block();
 static void call(bool can_assign);
+static int constant_identifier(Chunk_t *chunk, HashTable_t *ids, ObjectStr_t *name);
+static void emit_let_opcode(OpCode_t short_op, OpCode_t long_op, int operand);
+static void dot(bool can_assign);
+static void named_let(Token_t name, bool can_assign);
+static void this_(bool can_assign);
 
 static bool match(TokenType_t type);
 static void statement();
 static void declaration();
 static int parse_let(const char *msg);
+static void declare_let();
 
 void init_compiler(Compiler_t *compiler, FuncType_t type);
 static bool identifiers_equals(Token_t *a, Token_t *b);
@@ -79,7 +87,11 @@ static void emit_bytes(uint8_t byte_1, uint8_t byte_2) {
 }
 
 static void emit_return() {
-    emit_byte(OP_NONE);
+    if (cur_compiler->type == TYPE_INITIAZLIER) {
+        emit_bytes(OP_GET_LOCAL, 0);
+    } else {
+        emit_byte(OP_NONE);
+    }
     emit_byte(OP_RETURN);
 }
 
@@ -104,6 +116,14 @@ void init_compiler(Compiler_t *compiler, FuncType_t type) {
     local->name.start = "";
     local->name.length = 0;
     local->is_captured = false;
+
+    if (type != TYPE_FUNCTION) {
+        local->name.start = "this";
+        local->name.length = 4;
+    } else {
+        local->name.start = "";
+        local->name.length = 0;
+    }
 }
 
 static ObjectFunc_t *stop_compiler() {
@@ -131,7 +151,7 @@ ParseRule_t rules[] = {
     [TOKEN_OPEN_CURLY] = {NULL, NULL, PREC_NONE},
     [TOKEN_CLOSE_CURLY] = {NULL, NULL, PREC_NONE},
     [TOKEN_COMMA] = {NULL, NULL, PREC_NONE},
-    [TOKEN_DOT] = {NULL, NULL, PREC_NONE},
+    [TOKEN_DOT] = {NULL, dot, PREC_ACCESSOR},
     [TOKEN_SUB] = {unary, binary, PREC_ADD_SUB},
     [TOKEN_ADD] = {NULL, binary, PREC_ADD_SUB},
     [TOKEN_SEMICOLON] = {NULL, NULL, PREC_NONE},
@@ -160,13 +180,21 @@ ParseRule_t rules[] = {
     [TOKEN_PRINT] = {NULL, NULL, PREC_NONE},
     [TOKEN_RETURN] = {NULL, NULL, PREC_NONE},
     [TOKEN_SUPER] = {NULL, NULL, PREC_NONE},
-    [TOKEN_THIS] = {NULL, NULL, PREC_NONE},
+    [TOKEN_THIS] = {this_, NULL, PREC_NONE},
     [TOKEN_TRUE] = {literal, NULL, PREC_NONE},
     [TOKEN_LET] = {NULL, NULL, PREC_NONE},
     [TOKEN_WHILE] = {NULL, NULL, PREC_NONE},
     [TOKEN_ERROR] = {NULL, NULL, PREC_NONE},
     [TOKEN_END_FILE] = {NULL, NULL, PREC_NONE},
 };
+
+static void this_(bool can_assign) {
+    if (cur_class == NULL) {
+        report_error(&parser.cur, "Cannot use 'this' outside of a class");
+        return;
+    }
+    let(false);
+}
 
 static void expression() {
     parse_precedence(PREC_ASSIGN);
@@ -292,11 +320,56 @@ static void func_declaration() {
     define_let(global_id);
 }
 
+static void method() {
+    consume(TOKEN_IDENTIFIER, "Expected method name");
+    ObjectStr_t *method_name = allocate_str(parser.prev.start, parser.prev.length);
+    int operand = constant_identifier(get_cur_chunk(), &compiler_ids, method_name);
+
+    FuncType_t type = TYPE_METHOD;
+    if (parser.prev.length == 4 && memcmp(parser.prev.start, "init", 4) == 0) {
+        type = TYPE_INITIAZLIER;
+    }
+    function(type);
+
+    emit_let_opcode(OP_METHOD, OP_METHOD_LONG, operand);
+}
+
+static void class_declaration() {
+    consume(TOKEN_IDENTIFIER, "Class name not found");
+
+    Token_t class_name = parser.prev;
+
+    ObjectStr_t *constant = allocate_str(parser.prev.start, parser.prev.length);
+    int operand = constant_identifier(get_cur_chunk(), &compiler_ids, constant);
+    declare_let();
+
+    emit_let_opcode(OP_CLASS, OP_CLASS_LONG, operand);
+    define_let(operand);
+
+    ClassCompiler_t class_compiler;
+    class_compiler.name = parser.prev;
+    class_compiler.enclosing = cur_class;
+    cur_class = &class_compiler;
+
+    named_let(class_name, false);
+    consume(TOKEN_OPEN_CURLY, "Missing '{' before class body");
+
+    while (!check(TOKEN_CLOSE_CURLY) && !check(TOKEN_END_FILE)) {
+        method();
+    }
+
+    consume(TOKEN_CLOSE_CURLY, "Missing '}' after class body");
+    emit_byte(OP_POP);
+    cur_class = cur_class->enclosing;
+}
+
 static void declaration() {
     if (match(TOKEN_LET)) {
         let_declaration();
     } else if (match(TOKEN_FUNC)) {
         func_declaration();
+    } else if (match(TOKEN_CLASS)) {
+        class_declaration();
     } else {
         statement();
     }
@@ -522,6 +595,9 @@ static void return_statement() {
     if (match(TOKEN_SEMICOLON)) {
         emit_return();
     } else {
+        if (cur_compiler->type == TYPE_INITIAZLIER) {
+            report_error(&parser.cur, "You aren't allowed to return a value from an initializer");
+        }
         expression();
         consume(TOKEN_SEMICOLON, "Expected ';' after return");
         emit_byte(OP_RETURN);
@@ -672,6 +748,23 @@ static void named_let(Token_t name, bool can_assign) {
 
 static void let(bool can_assign) {
     named_let(parser.prev, can_assign);
+}
+
+static void dot(bool can_assign) {
+    consume(TOKEN_IDENTIFIER, "Expected field name after '.'");
+    ObjectStr_t *class_name = allocate_str(parser.prev.start, parser.prev.length);
+    int operand = constant_identifier(get_cur_chunk(), &compiler_ids, class_name);
+
+    if (can_assign && match(TOKEN_EQUAL)) {
+        expression();
+        emit_bytes(OP_SET_PROPERTY, operand);
+    } else if (match(TOKEN_OPEN_PAREN)) {
+        uint8_t arg_cnt = arg_list();
+        emit_bytes(OP_INVOKE, operand);
+        emit_byte(arg_cnt);
+    } else {
+        emit_bytes(OP_GET_PROPERTY, operand);
+    }
 }
 
 // ===================================================================================================

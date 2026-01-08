@@ -1,4 +1,7 @@
 #include "../includes/hash_table.h"
+#include "../includes/memory.h"
+#include "../includes/value.h"
+
 #include <stdint.h>
 
 void init_hash_table(HashTable_t *hash_table) {
