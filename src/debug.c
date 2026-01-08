@@ -92,7 +92,7 @@ int disassemble_instruction(Chunk_t *chunk, int offset) {
         case OP_LOOP:
             return branch_instruction("OP_LOOP", -1, chunk, offset);
         case OP_CALL:
-            return byte_instruction_long("OP_CALL", chunk, offset);
+            return byte_instruction("OP_CALL", chunk, offset);
         case OP_CLOSURE: {
             offset++;
             uint8_t constant = chunk->code[offset++];
@@ -109,9 +109,9 @@ int disassemble_instruction(Chunk_t *chunk, int offset) {
             return offset;
         }
         case OP_GET_UPVALUE:
-            return byte_instruction_long("OP_GET_UPVALUE", chunk, offset);
+            return byte_instruction("OP_GET_UPVALUE", chunk, offset);
         case OP_SET_UPVALUE:
-            return byte_instruction_long("OP_SET_UPVALUE", chunk, offset);
+            return byte_instruction("OP_SET_UPVALUE", chunk, offset);
         case OP_CLOSE_UPVALUE:
             return standard_instruction("OP_CLOSE_UPVALUE", offset);
         default:

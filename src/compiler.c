@@ -54,6 +54,14 @@ ObjectFunc_t *compile(const char *code) {
     return parser.has_error ? NULL : func;
 }
 
+void mark_compiler_roots() {
+    Compiler_t *compiler = cur_compiler;
+    while (compiler != NULL) {
+        mark_object((Object_t *)compiler->func);
+        compiler = compiler->enclosing;
+    }
+}
+
 // ===================================================================================================
 
 static Chunk_t *get_cur_chunk() {
@@ -696,7 +704,7 @@ static void add_local(Token_t token) {
         int old_capacity = cur_compiler->local_cnt;
         cur_compiler->local_cap = grow_capacity(old_capacity);
         cur_compiler->locals =
-            resize(cur_compiler->locals, sizeof(Local_t), cur_compiler->local_cap);
+            resize(cur_compiler->locals, sizeof(Local_t), old_capacity, cur_compiler->local_cap);
     }
     Local_t *local = &cur_compiler->locals[cur_compiler->local_cnt++];
     local->name = token;
@@ -717,7 +725,7 @@ static void declare_let() {
         return;
     }
     Token_t name = parser.prev;
-    for (int i = cur_compiler->local_cnt; i > 0; i--) {
+    for (int i = cur_compiler->local_cnt - 1; i > 0; i--) {
         Local_t *local = &cur_compiler->locals[i];
         if (local->depth != -1 && local->depth < cur_compiler->scope_depth) {
             // out of scope of current block

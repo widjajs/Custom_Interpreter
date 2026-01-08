@@ -2,11 +2,16 @@
 #include "../includes/value.h"
 #include "../includes/vm.h"
 
-static Object_t *allocate_object(size_t size, ObjectType_t type) {
+Object_t *allocate_object(size_t size, ObjectType_t type) {
     Object_t *new_object = (Object_t *)(malloc(size));
     new_object->type = type;
     new_object->next = vm.objects;
+    new_object->is_marked = false;
     vm.objects = new_object;
+
+#ifdef DEBUG_LOG_GC
+    printf("%p allocate %ld for %d\n", (void *)new_object, size, type);
+#endif
     return new_object;
 }
 
@@ -35,7 +40,9 @@ ObjectStr_t *allocate_str(const char *chars, int length) {
 
     new_str->hash = hash_string(chars, length);
 
+    push(DECL_OBJ_VAL(new_str)); // fix GC bug
     insert(&vm.strings, new_str, DECL_NONE_VAL);
+    pop(); // fix GC bug
 
     return new_str;
 }

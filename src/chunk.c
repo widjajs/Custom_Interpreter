@@ -1,5 +1,6 @@
 #include "../includes/chunk.h"
 #include "../includes/memory.h"
+#include "../includes/vm.h"
 
 // init method for a new chunk
 void init_chunk(Chunk_t *chunk) {
@@ -15,7 +16,7 @@ void write_chunk(Chunk_t *chunk, uint8_t byte, int line) {
     if (chunk->count + 1 > chunk->capacity) {
         int old_capacity = chunk->capacity;
         chunk->capacity = grow_capacity(old_capacity);
-        chunk->code = resize(chunk->code, sizeof(uint8_t), chunk->capacity);
+        chunk->code = resize(chunk->code, sizeof(uint8_t), old_capacity, chunk->capacity);
     }
 
     chunk->code[chunk->count] = byte;
@@ -33,7 +34,9 @@ void free_chunk(Chunk_t *chunk) {
 
 // write_constant() helper function -> returns idx of value written
 int add_constant(Chunk_t *chunk, Value_t value) {
+    push(value); // GC bug
     write_value_array(&(chunk->constants), value);
+    pop(); // GC bug
     return chunk->constants.count - 1;
 }
 

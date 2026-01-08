@@ -112,14 +112,16 @@ bool drop(HashTable_t *hash_table, ObjectStr_t *key) {
 }
 
 ObjectStr_t *find_str(HashTable_t *hash_table, const char *chars, int length, uint32_t hash) {
-    if (hash_table->table == NULL) {
+    if (hash_table->table == NULL || hash_table->num_elems == 0) {
         return NULL;
     }
     uint32_t idx = hash % hash_table->capacity;
     for (int i = 0; i < hash_table->capacity; i++) {
         Node_t *node = &hash_table->table[idx];
-        if (node->key == NULL && IS_NONE_VAL(node->value)) {
-            return NULL;
+        if (node->key == NULL) {
+            if (IS_NONE_VAL(node->value)) {
+                return NULL;
+            }
         } else if (node->key->length == length && node->key->hash == hash &&
                    memcmp(node->key->chars, chars, length) == 0) {
             return node->key;
@@ -127,4 +129,21 @@ ObjectStr_t *find_str(HashTable_t *hash_table, const char *chars, int length, ui
         idx = (idx + 1) % hash_table->capacity;
     }
     return NULL;
+}
+
+void mark_table(HashTable_t *table) {
+    for (int i = 0; i < table->capacity; i++) {
+        Node_t *node = &table->table[i];
+        mark_object((Object_t *)node->key); // mark the key str for each node
+        mark_value(node->value);            // mark the values of each node
+    }
+}
+
+void remove_table_whites(HashTable_t *table) {
+    for (int i = 0; i < table->capacity; i++) {
+        Node_t *node = &table->table[i];
+        if (node->key != NULL && !node->key->object.is_marked) {
+            drop(table, node->key);
+        }
+    }
 }

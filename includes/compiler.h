@@ -57,5 +57,6 @@ typedef struct Compiler_t {
 } Compiler_t;
 
 ObjectFunc_t *compile(const char *code);
+void mark_compiler_roots();
 
 #endif

@@ -23,6 +23,11 @@ typedef struct {
     CallFrame_t frames[64];
     int frame_cnt;
     ObjectUpvalue_t *open_upvalues;
+    int grey_cnt;
+    int grey_capacity;
+    Object_t **grey_stack;
+    size_t bytes_allocated;
+    size_t next_GC;
 } vm_t;
 
 typedef enum { INTERPRET_OK, INTERPRET_COMPILE_ERROR, INTERPRET_RUNTIME_ERROR } InterpretResult_t;

@@ -24,6 +24,7 @@ typedef enum { OBJ_FUNC, OBJ_STR, OBJ_NATIVE, OBJ_CLOSURE, OBJ_UPVALUE } ObjectT
 struct Object_t {
     ObjectType_t type;
     struct Object_t *next; // for linked list allowing garbage collection
+    bool is_marked;
 };
 
 // ObjectStr_t* can be safely casted to Object_t*

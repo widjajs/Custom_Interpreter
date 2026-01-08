@@ -11,7 +11,8 @@ void write_line_array(LineRunArray_t *array, LineRun_t line_run) {
     if (array->count + 1 > array->capacity) {
         int old_capacity = array->capacity;
         array->capacity = grow_capacity(old_capacity);
-        array->line_runs = resize(array->line_runs, sizeof(LineRun_t), array->capacity);
+        array->line_runs =
+            resize(array->line_runs, sizeof(LineRun_t), old_capacity, array->capacity);
     }
 
     if (array->count != 0 && array->line_runs[array->count - 1].line == line_run.line) {

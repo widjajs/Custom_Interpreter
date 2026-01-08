@@ -37,8 +37,15 @@ void init_vm() {
     vm.stack_top = vm.stack;
     vm.frame_cnt = 0;
     vm.objects = NULL;
+    vm.grey_capacity = 0;
+    vm.grey_cnt = 0;
+    vm.grey_stack = NULL;
+    vm.bytes_allocated = 0;
+    vm.next_GC = 1024 * 1024;
+
     init_hash_table(&vm.strings);
     init_hash_table(&vm.globals);
+
     define_native("clock", clock_native);
 }
 
@@ -135,8 +142,8 @@ static bool is_falsey(Value_t value) {
 }
 
 static void concatenate() {
-    ObjectStr_t *b = GET_STR_VAL(pop());
-    ObjectStr_t *a = GET_STR_VAL(pop());
+    ObjectStr_t *b = GET_STR_VAL(peek(0));
+    ObjectStr_t *a = GET_STR_VAL(peek(1));
 
     int new_length = a->length + b->length;
     char *new_str = ALLOCATE(char, new_length + 1);
@@ -145,6 +152,8 @@ static void concatenate() {
     new_str[new_length] = '\0';
 
     ObjectStr_t *res = allocate_str(new_str, new_length);
+    pop(); // GC bug
+    pop(); // GC bug
     push(DECL_OBJ_VAL(res));
 }
 
@@ -414,7 +423,7 @@ static InterpretResult_t run() {
                 break;
             }
             case OP_CLOSE_UPVALUE: {
-                close_upvalues(vm.stack - 1);
+                close_upvalues(vm.stack_top - 1);
                 pop();
                 break;
             }
