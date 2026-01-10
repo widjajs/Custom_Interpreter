@@ -10,6 +10,7 @@ int byte_instruction(const char *name, Chunk_t *chunk, int offset);
 int byte_instruction_long(const char *name, Chunk_t *chunk, int offset);
 int branch_instruction(const char *name, int sign, Chunk_t *chunk, int offset);
 int invoke_instruction(const char *name, Chunk_t *chunk, int offset);
+int invoke_instruction_long(const char *name, Chunk_t *chunk, int offset);
 
 // given machine code -> output list of instructions
 void disassemble_chunk(Chunk_t *chunk, const char *name) {
@@ -129,6 +130,16 @@ int disassemble_instruction(Chunk_t *chunk, int offset) {
             return constant_long_instruction("OP_METHOD", chunk, offset);
         case OP_INVOKE:
             return invoke_instruction("OP_INVOKE", chunk, offset);
+        case OP_INHERIT:
+            return standard_instruction("OP_INHERIT", offset);
+        case OP_GET_SUPER:
+            return standard_instruction("OP_GET_SUPER", offset);
+        case OP_GET_SUPER_LONG:
+            return constant_long_instruction("OP_GET_SUPER_LONG", chunk, offset);
+        case OP_SUPER_INVOKE:
+            return invoke_instruction("OP_SUPER_INVOKE", chunk, offset);
+        case OP_SUPER_INVOKE_LONG:
+            return invoke_instruction_long("OP_SUPER_INVOKE_LONG", chunk, offset);
         default:
             printf("Unknown OpCode %d\n", instruction);
             return offset + 1;
@@ -191,4 +202,22 @@ int invoke_instruction(const char *name, Chunk_t *chunk, int offset) {
     print_value(chunk->constants.values[constant]);
     printf("'\n");
     return offset + 3;
+}
+
+int invoke_instruction_long(const char *name, Chunk_t *chunk, int offset) {
+    int idx = (chunk->code[offset + 1]) | (chunk->code[offset + 2] << 8) |
+              (chunk->code[offset + 3] << 16);
+
+    int arg_cnt = chunk->code[offset + 4];
+
+    printf("%-16s (%d args) %4u '", name, arg_cnt, idx);
+
+    if (idx >= chunk->constants.count) {
+        printf("<bad constant index %u / count %d>", idx, chunk->constants.count);
+    } else {
+        print_value(chunk->constants.values[idx]);
+    }
+
+    printf("'\n");
+    return offset + 5;
 }

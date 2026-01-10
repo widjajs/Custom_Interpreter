@@ -9,3 +9,53 @@ class test {
 
 let a = test();
 a.field();
+
+class Doughnut {
+    finish(ingredient) {
+        print "Finish with " + ingredient;
+    }
+    cook() {
+        print "Dunk in the fryer.";
+        this.finish("sprinkles");
+    }
+}
+class Cruller < Doughnut {
+    finish(ingredient) {
+        super.finish("icing");
+    }
+}
+
+let cruller = Cruller();
+cruller.finish("sugar");
+
+// closures
+func outer() {
+    let x = "outside";
+    func inner() {
+        print x;
+    }
+    inner();
+}
+
+outer();
+
+
+// native functions
+func fib(n) {
+    if (n < 2) return n;
+    
+    let prev = 0;
+    let curr = 1;
+    
+    for (let i = 2; i <= n; i = i + 1) {
+        let next = prev + curr;
+        prev = curr;
+        curr = next;
+    }
+    
+    return curr;
+}
+
+let start = clock();
+print fib(35);
+print clock() - start;

@@ -61,6 +61,7 @@ typedef struct Compiler_t {
 typedef struct ClassCompiler_t {
     struct ClassCompiler_t *enclosing;
     Token_t name;
+    bool has_super_class;
 } ClassCompiler_t;
 
 ObjectFunc_t *compile(const char *code);

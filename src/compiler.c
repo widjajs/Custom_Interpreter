@@ -30,10 +30,13 @@ static void or_(bool can_assign);
 static void block();
 static void call(bool can_assign);
 static int constant_identifier(Chunk_t *chunk, HashTable_t *ids, ObjectStr_t *name);
-static void emit_let_opcode(OpCode_t short_op, OpCode_t long_op, int operand);
+static void emit_sized_opcode(OpCode_t short_op, OpCode_t long_op, int operand);
 static void dot(bool can_assign);
 static void named_let(Token_t name, bool can_assign);
 static void this_(bool can_assign);
+static void add_local(Token_t token);
+static void end_scope();
+static void super_(bool can_assign);
 
 static bool match(TokenType_t type);
 static void statement();
@@ -59,6 +62,7 @@ ObjectFunc_t *compile(const char *code) {
         declaration();
     }
     ObjectFunc_t *func = stop_compiler();
+    free_hash_table(&compiler_ids);
     return parser.has_error ? NULL : func;
 }
 
@@ -138,7 +142,7 @@ static ObjectFunc_t *stop_compiler() {
         free(cur_compiler->locals);
         cur_compiler->locals = NULL;
     }
-    free_hash_table(&compiler_ids);
+
     cur_compiler = cur_compiler->enclosing;
     return func;
 }
@@ -179,7 +183,7 @@ ParseRule_t rules[] = {
     [TOKEN_OR] = {NULL, or_, PREC_OR},
     [TOKEN_PRINT] = {NULL, NULL, PREC_NONE},
     [TOKEN_RETURN] = {NULL, NULL, PREC_NONE},
-    [TOKEN_SUPER] = {NULL, NULL, PREC_NONE},
+    [TOKEN_SUPER] = {super_, NULL, PREC_NONE},
     [TOKEN_THIS] = {this_, NULL, PREC_NONE},
     [TOKEN_TRUE] = {literal, NULL, PREC_NONE},
     [TOKEN_LET] = {NULL, NULL, PREC_NONE},
@@ -323,7 +327,8 @@ static void func_declaration() {
 static void method() {
     consume(TOKEN_IDENTIFIER, "Expected method name");
     ObjectStr_t *method_name = allocate_str(parser.prev.start, parser.prev.length);
-    int operand = constant_identifier(get_cur_chunk(), &compiler_ids, method_name);
+    // int operand = constant_identifier(get_cur_chunk(), &compiler_ids, method_name);
+    int operand = add_constant(get_cur_chunk(), DECL_OBJ_VAL(method_name));
 
     FuncType_t type = TYPE_METHOD;
     if (parser.prev.length == 4 && memcmp(parser.prev.start, "init", 4) == 0) {
@@ -331,7 +336,40 @@ static void method() {
     }
     function(type);
 
-    emit_let_opcode(OP_METHOD, OP_METHOD_LONG, operand);
+    emit_sized_opcode(OP_METHOD, OP_METHOD_LONG, operand);
+}
+
+static Token_t synthetic_token(const char *text) {
+    Token_t token;
+    token.start = text;
+    token.length = (int)strlen(text);
+    return token;
+}
+
+static void super_(bool can_assign) {
+    if (cur_class == NULL) {
+        report_error(&parser.cur, "You can't use 'super' outside of a class");
+    } else if (!cur_class->has_super_class) {
+        report_error(&parser.cur, "Can't use 'super' in a class with no superclass");
+    }
+    consume(TOKEN_DOT, "Missing '.' after 'super'");
+    consume(TOKEN_IDENTIFIER, "Missing superlcass method name");
+    ObjectStr_t *method_name = allocate_str(parser.prev.start, parser.prev.length);
+    // int operand = constant_identifier(get_cur_chunk(), &compiler_ids, method_name);
+    int operand = add_constant(get_cur_chunk(), DECL_OBJ_VAL(method_name));
+
+    named_let(synthetic_token("this"), false);
+    if (match(TOKEN_OPEN_PAREN)) {
+        // super.method() optimization -> just search up and call it
+        uint8_t arg_cnt = arg_list();
+        named_let(synthetic_token("super"), false);
+        emit_sized_opcode(OP_SUPER_INVOKE, OP_SUPER_INVOKE_LONG, operand);
+        emit_byte(arg_cnt);
+    } else {
+        // let method = super.method() -> other case where we actaully need the memory alloation
+        named_let(synthetic_token("super"), false);
+        emit_sized_opcode(OP_GET_SUPER, OP_GET_SUPER_LONG, operand);
+    }
 }
 
 static void class_declaration() {
@@ -341,15 +379,34 @@ static void class_declaration() {
 
     ObjectStr_t *constant = allocate_str(parser.prev.start, parser.prev.length);
     int operand = constant_identifier(get_cur_chunk(), &compiler_ids, constant);
+    // int operand = add_constant(get_cur_chunk(), DECL_OBJ_VAL(constant));
     declare_let();
 
-    emit_let_opcode(OP_CLASS, OP_CLASS_LONG, operand);
+    emit_sized_opcode(OP_CLASS, OP_CLASS_LONG, operand);
     define_let(operand);
 
     ClassCompiler_t class_compiler;
-    class_compiler.name = parser.prev;
+    class_compiler.name = class_name;
     class_compiler.enclosing = cur_class;
+    class_compiler.has_super_class = false;
     cur_class = &class_compiler;
+
+    if (match(TOKEN_LESS_THAN)) {
+        consume(TOKEN_IDENTIFIER, "Supeclass name is missing");
+        let(false); // looks up superclass name and pushes it on to stack
+
+        if (identifiers_equals(&class_name, &parser.prev)) {
+            report_error(&parser.cur, "Classes cannot inherite from themselves");
+        }
+
+        cur_compiler->scope_depth++; // begin scope
+        add_local(synthetic_token("super"));
+        define_let(0);
+
+        named_let(class_name, false); // load subclass that inherits from parent onto stack
+        emit_byte(OP_INHERIT);
+        class_compiler.has_super_class = true;
+    }
 
     named_let(class_name, false);
     consume(TOKEN_OPEN_CURLY, "Missing '{' before class body");
@@ -360,6 +417,10 @@ static void class_declaration() {
 
     consume(TOKEN_CLOSE_CURLY, "Missing '}' after class body");
     emit_byte(OP_POP);
+
+    if (class_compiler.has_super_class) {
+        end_scope();
+    }
     cur_class = cur_class->enclosing;
 }
 
@@ -630,7 +691,7 @@ static void string(bool can_assign) {
                    parser.prev.line);
 }
 
-static void emit_let_opcode(OpCode_t short_op, OpCode_t long_op, int operand) {
+static void emit_sized_opcode(OpCode_t short_op, OpCode_t long_op, int operand) {
     if (operand <= 255) {
         emit_bytes(short_op, (uint8_t)(operand));
     } else {
@@ -720,7 +781,7 @@ static void named_let(Token_t name, bool can_assign) {
         get_op = OP_GET_UPVALUE;
         set_op = OP_SET_UPVALUE;
     } else {
-        ObjectStr_t *global_name = allocate_str(parser.prev.start, parser.prev.length);
+        ObjectStr_t *global_name = allocate_str(name.start, name.length);
         operand = constant_identifier(get_cur_chunk(), &compiler_ids, global_name);
         get_op = OP_GET_GLOBAL;
         set_op = OP_SET_GLOBAL;
@@ -729,17 +790,17 @@ static void named_let(Token_t name, bool can_assign) {
     if (can_assign && match(TOKEN_EQUAL)) {
         expression();
         if (set_op == OP_SET_GLOBAL) {
-            emit_let_opcode(set_op, OP_SET_GLOBAL_LONG, operand);
+            emit_sized_opcode(set_op, OP_SET_GLOBAL_LONG, operand);
         } else if (set_op == OP_SET_LOCAL) {
-            emit_let_opcode(set_op, OP_SET_LOCAL_LONG, operand);
+            emit_sized_opcode(set_op, OP_SET_LOCAL_LONG, operand);
         } else {
             emit_bytes(OP_SET_UPVALUE, operand);
         }
     } else {
         if (get_op == OP_GET_GLOBAL) {
-            emit_let_opcode(get_op, OP_GET_GLOBAL_LONG, operand);
+            emit_sized_opcode(get_op, OP_GET_GLOBAL_LONG, operand);
         } else if (get_op == OP_GET_LOCAL) {
-            emit_let_opcode(get_op, OP_GET_LOCAL_LONG, operand);
+            emit_sized_opcode(get_op, OP_GET_LOCAL_LONG, operand);
         } else {
             emit_bytes(OP_GET_UPVALUE, operand);
         }
@@ -753,7 +814,8 @@ static void let(bool can_assign) {
 static void dot(bool can_assign) {
     consume(TOKEN_IDENTIFIER, "Expected field name after '.'");
     ObjectStr_t *class_name = allocate_str(parser.prev.start, parser.prev.length);
-    int operand = constant_identifier(get_cur_chunk(), &compiler_ids, class_name);
+    // int operand = constant_identifier(get_cur_chunk(), &compiler_ids, class_name);
+    int operand = add_constant(get_cur_chunk(), DECL_OBJ_VAL(class_name));
 
     if (can_assign && match(TOKEN_EQUAL)) {
         expression();

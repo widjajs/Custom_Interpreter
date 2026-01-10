@@ -50,7 +50,12 @@ typedef enum {
     OP_SET_PROPERTY,
     OP_METHOD,
     OP_METHOD_LONG,
-    OP_INVOKE
+    OP_INVOKE,
+    OP_SUPER_INVOKE,
+    OP_SUPER_INVOKE_LONG,
+    OP_INHERIT,
+    OP_GET_SUPER,
+    OP_GET_SUPER_LONG,
 } OpCode_t;
 
 // Data

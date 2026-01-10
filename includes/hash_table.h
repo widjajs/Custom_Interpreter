@@ -23,6 +23,7 @@ bool insert(HashTable_t *hash_table, ObjectStr_t *key, Value_t value);
 Value_t *get(HashTable_t *hash_table, ObjectStr_t *key);
 bool drop(HashTable_t *hash_table, ObjectStr_t *key);
 ObjectStr_t *find_str(HashTable_t *hash_table, const char *chars, int length, uint32_t hash);
+void table_add_all(HashTable_t *from, HashTable_t *to);
 void mark_table(HashTable_t *table);
 void remove_table_whites(HashTable_t *table);
 

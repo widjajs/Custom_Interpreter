@@ -134,6 +134,15 @@ ObjectStr_t *find_str(HashTable_t *hash_table, const char *chars, int length, ui
     return NULL;
 }
 
+void table_add_all(HashTable_t *from, HashTable_t *to) {
+    for (int i = 0; i < from->capacity; i++) {
+        Node_t *node = &from->table[i];
+        if (node->key != NULL) {
+            insert(to, node->key, node->value);
+        }
+    }
+}
+
 void mark_table(HashTable_t *table) {
     for (int i = 0; i < table->capacity; i++) {
         Node_t *node = &table->table[i];

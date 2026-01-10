@@ -549,6 +549,56 @@ static InterpretResult_t run() {
                 frame = &vm.frames[vm.frame_cnt - 1];
                 break;
             }
+            case OP_INHERIT: {
+                Value_t superclass = peek(1);
+                if (!IS_CLASS(superclass)) {
+                    throw_runtime_error(
+                        "You tried to inherit from something that wasn't a class :(");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                ObjectClass_t *subclass = GET_CLASS(peek(0));
+                table_add_all(&GET_CLASS(superclass)->methods, &subclass->methods);
+                pop(); // pop off the subclass
+                break;
+            }
+            case OP_GET_SUPER: {
+                ObjectStr_t *name = READ_STRING();
+                ObjectClass_t *superclass = GET_CLASS(pop());
+                if (!bind_method(superclass, name)) {
+                    // the superclass method doesn't exist
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                break;
+            }
+            case OP_GET_SUPER_LONG: {
+                ObjectStr_t *name = READ_STRING_LONG();
+                ObjectClass_t *superclass = GET_CLASS(pop());
+                if (!bind_method(superclass, name)) {
+                    // the superclass method doesn't exist
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                break;
+            }
+            case OP_SUPER_INVOKE: {
+                ObjectStr_t *method = READ_STRING();
+                int arg_cnt = READ_BYTE();
+                ObjectClass_t *superclass = GET_CLASS(pop());
+                if (!invoke_from_class(superclass, method, arg_cnt)) {
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                frame = &vm.frames[vm.frame_cnt - 1];
+                break;
+            }
+            case OP_SUPER_INVOKE_LONG: {
+                ObjectStr_t *method = READ_STRING_LONG();
+                int arg_cnt = READ_BYTE();
+                ObjectClass_t *superclass = GET_CLASS(pop());
+                if (!invoke_from_class(superclass, method, arg_cnt)) {
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                frame = &vm.frames[vm.frame_cnt - 1];
+                break;
+            }
             case OP_RETURN: {
                 Value_t res = pop();
                 close_upvalues(frame->slots);
