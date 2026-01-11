@@ -5,6 +5,8 @@
 
 #include <stdint.h>
 
+// TODO: 574
+
 Parser_t parser;
 Chunk_t *cur_chunk = NULL;
 Compiler_t *cur_compiler = NULL;

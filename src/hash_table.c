@@ -16,9 +16,9 @@ void free_hash_table(HashTable_t *hash_table) {
 }
 
 static Node_t *find_insertion_slot(Node_t *table, ObjectStr_t *key, int capacity) {
-    uint32_t idx = key->hash % capacity;
+    uint32_t idx = key->hash & (capacity - 1);
     Node_t *tombstone = NULL;
-    for (int i = 0; i < capacity; i++) {
+    for (;;) {
         Node_t *potential_slot = &table[idx];
         if (potential_slot->key == key) {
             return potential_slot;
@@ -30,13 +30,14 @@ static Node_t *find_insertion_slot(Node_t *table, ObjectStr_t *key, int capacity
                 tombstone = potential_slot;
             }
         }
-        idx = (idx + 1) % capacity;
+        idx = (idx + 1) & (capacity - 1);
     }
     return NULL;
 }
 
 static void resize_table(HashTable_t *hash_table, int new_capacity) {
-    Node_t *new_table = (Node_t *)malloc(sizeof(Node_t) * new_capacity);
+    // Node_t *new_table = (Node_t *)malloc(sizeof(Node_t) * new_capacity);
+    Node_t *new_table = ALLOCATE(Node_t, new_capacity);
     if (new_table == NULL) {
         fprintf(stderr, "Error: not enough memory avaialable");
         return;
@@ -66,7 +67,7 @@ static void resize_table(HashTable_t *hash_table, int new_capacity) {
 }
 
 bool insert(HashTable_t *hash_table, ObjectStr_t *key, Value_t value) {
-    if (hash_table->num_elems + 1 > hash_table->capacity * TABLE_MAX_LOAD) {
+    if (hash_table->num_elems + 1 > (hash_table->capacity) * TABLE_MAX_LOAD) {
         int new_capacity = grow_capacity(hash_table->capacity);
         resize_table(hash_table, new_capacity);
     }
@@ -118,8 +119,8 @@ ObjectStr_t *find_str(HashTable_t *hash_table, const char *chars, int length, ui
     if (hash_table->table == NULL || hash_table->num_elems == 0) {
         return NULL;
     }
-    uint32_t idx = hash % hash_table->capacity;
-    for (int i = 0; i < hash_table->capacity; i++) {
+    uint32_t idx = hash & (hash_table->capacity - 1);
+    for (;;) {
         Node_t *node = &hash_table->table[idx];
         if (node->key == NULL) {
             if (IS_NONE_VAL(node->value)) {
@@ -129,7 +130,7 @@ ObjectStr_t *find_str(HashTable_t *hash_table, const char *chars, int length, ui
                    memcmp(node->key->chars, chars, length) == 0) {
             return node->key;
         }
-        idx = (idx + 1) % hash_table->capacity;
+        idx = (idx + 1) & (hash_table->capacity - 1);
     }
     return NULL;
 }

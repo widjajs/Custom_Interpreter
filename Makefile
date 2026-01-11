@@ -30,5 +30,11 @@ run: $(TARGET)
 debug: $(TARGET)
 	gdb ./$(TARGET)
 
+perf: $(TARGET)
+	perf record -g ./$(TARGET) test0.gld
+
+perf-report:
+	perf report
+
 clean:
 	rm -rf $(OBJ_DIR) $(TARGET)
