@@ -50,7 +50,6 @@ A simple interpreter implemented in **C**, inspired by
 - **Development Tools**:
   - File execution mode
   - Error reporting with line numbers
-  - Debug & Disassembly mode
   - Runtime error messages
 
 ---
