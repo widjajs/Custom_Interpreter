@@ -3,19 +3,24 @@
 A simple interpreter implemented in **C**, inspired by  
 **_Crafting Interpreters_** by Robert Nystrom.
 
-This project extends the core ideas from the book by adding variable scoping and loop constructs, while retaining a bytecode-based virtual machine architecture.
-
 ---
 
 ## Features
 
 - **Arithmetic operations**: `+`, `-`, `*`, `/`
+- **Comparison Operators**: `==`, `!=`, `<`, `<=`, `>`, `>=`
 - **Unary operations**: `-` (negation)
 - **Grouping**: Parentheses for explicit precedence
 - **String operations**: concatenation and comparison
+- **Data Types**:
+  - Numbers (integers/floats) 
+  - Strings
+  - Booleans
+  - None/Null
 - **Variables**:
   - Dynamic typing
   - Variable declaration and usage
+  - Global & local variables
   - Lexical scoping
 - **Control Flow**:
   - `if` statements
@@ -25,20 +30,40 @@ This project extends the core ideas from the book by adding variable scoping and
 - **Debugging support**:
   - Bytecode disassembly
   - Stack trace output (via debug flags)
-- **Functions**
+- **Functions**:
+  - First-class functions
+  - Closures & lexical scoping
+  - Function parameters & arguments
+  - Recursion support
+  - Native functions
+- **Classes & OOP**:
+  - Instance methods
+  - Instance properties/fields
+  - Constructors/initializers(e.g. init())
+  - Method binding
+  - Inheritance with `super`
+- **Runtime Features**:
+  - Garbage collection (with stress testing if enabled)
+  - String interning
+  - Stack-based VM execution
+  - Constant pool/value array
+- **Development Tools**:
+  - File execution mode
+  - Error reporting with line numbers
+  - Debug & Disassembly mode
+  - Runtime error messages
 
 ---
 
 ## Implementation Overview
 
-The interpreter closely follows the design patterns described in *Crafting Interpreters*, including:
+The interpreter is inspired by some design patterns described in *Crafting Interpreters*, including:
 
 - A **scanner (lexer)** for tokenizing input source code
 - A **bytecode virtual machine** for execution
 - **Pratt parsing** (Vaughan Pratt’s top-down operator precedence parser)
 - A **stack-based VM** with dynamically typed values
-- **Variable declaration and scope management**
-- Control-flow constructs implemented at the bytecode level
+- **Mark & Sweep** garbage colletion
 
 ---
 
