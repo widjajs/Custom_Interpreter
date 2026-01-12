@@ -1,3 +1,4 @@
+// stress test not representative of real usage
 class Zoo {
     init() {
         this.aardvark = 1;
