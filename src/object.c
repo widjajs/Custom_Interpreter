@@ -16,7 +16,7 @@ Object_t *allocate_object(size_t size, ObjectType_t type) {
     return new_object;
 }
 
-static uint32_t hash_string(const char *key, int length) {
+uint32_t hash_string(const char *key, int length) {
     uint32_t hash = 2166136261u;
     for (int i = 0; i < length; i++) {
         hash ^= key[i];
@@ -33,8 +33,8 @@ ObjectStr_t *allocate_str(const char *chars, int length) {
         return interned;
     }
 
-    ObjectStr_t *new_str =
-        (ObjectStr_t *)allocate_object(sizeof(ObjectStr_t) + sizeof(char) * (length + 1), OBJ_STR);
+    ObjectStr_t *new_str = (ObjectStr_t *)allocate_object(
+        sizeof(ObjectStr_t) + sizeof(char) * (length + 1), OBJ_STR);
     new_str->length = length;
     memcpy(new_str->chars, chars, length);
     new_str->chars[length] = '\0';
@@ -92,14 +92,17 @@ ObjectClass_t *create_class(ObjectStr_t *name) {
 }
 
 ObjectInstance_t *create_instance(ObjectClass_t *class_) {
-    ObjectInstance_t *new_instance = ALLOCATE_OBJ(ObjectInstance_t, OBJ_INSTANCE);
+    ObjectInstance_t *new_instance =
+        ALLOCATE_OBJ(ObjectInstance_t, OBJ_INSTANCE);
     new_instance->class_ = class_;
     init_hash_table(&new_instance->fields);
     return new_instance;
 }
 
-ObjectBoundMethod_t *create_bound_method(Value_t receiver, ObjectClosure_t *method) {
-    ObjectBoundMethod_t *new_bound = ALLOCATE_OBJ(ObjectBoundMethod_t, OBJ_BOUND_METHOD);
+ObjectBoundMethod_t *create_bound_method(Value_t receiver,
+                                         ObjectClosure_t *method) {
+    ObjectBoundMethod_t *new_bound =
+        ALLOCATE_OBJ(ObjectBoundMethod_t, OBJ_BOUND_METHOD);
     new_bound->receiver = receiver;
     new_bound->method = method;
     return new_bound;

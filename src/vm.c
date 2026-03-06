@@ -7,21 +7,21 @@
 #include <stdint.h>
 #include <time.h>
 
-static Value_t peek(int offset);
-static void throw_runtime_error(const char *format, ...);
+Value_t peek(int offset);
+void throw_runtime_error(const char *format, ...);
 
-#define BINARY_OP(type, op)                                                                        \
-    if (!IS_NUM_VAL(peek(0)) || !IS_NUM_VAL(peek(1))) {                                            \
-        throw_runtime_error("Operands are not numbers");                                           \
-        return INTERPRET_RUNTIME_ERROR;                                                            \
-    }                                                                                              \
-    double b = GET_NUM_VAL(pop());                                                                 \
-    double a = GET_NUM_VAL(pop());                                                                 \
+#define BINARY_OP(type, op)                                                    \
+    if (!IS_NUM_VAL(peek(0)) || !IS_NUM_VAL(peek(1))) {                        \
+        throw_runtime_error("Operands are not numbers");                       \
+        return INTERPRET_RUNTIME_ERROR;                                        \
+    }                                                                          \
+    double b = GET_NUM_VAL(pop());                                             \
+    double a = GET_NUM_VAL(pop());                                             \
     push(type(a op b));
 
 vm_t vm;
 
-static void define_native(const char *name, NativeFunc_t func) {
+void define_native(const char *name, NativeFunc_t func) {
     push(DECL_OBJ_VAL(allocate_str(name, (int)strlen(name))));
     push(DECL_OBJ_VAL(create_native(func)));
     insert(&vm.globals, GET_STR_VAL(vm.stack[0]), vm.stack[1]);
@@ -29,7 +29,7 @@ static void define_native(const char *name, NativeFunc_t func) {
     pop();
 }
 
-static Value_t clock_native(int arg_cnt, Value_t *args) {
+Value_t clock_native(int arg_cnt, Value_t *args) {
     return DECL_NUM_VAL((double)clock() / CLOCKS_PER_SEC);
 }
 
@@ -69,14 +69,14 @@ Value_t pop() {
     return *vm.stack_top;
 }
 
-static Value_t peek(int offset) {
+Value_t peek(int offset) {
     return vm.stack_top[-1 - offset];
 }
 
 static bool call(ObjectClosure_t *closure, int arg_cnt) {
     if (arg_cnt != closure->func->num_params) {
-        throw_runtime_error("Expected %d parameters but got %d", closure->func->num_params,
-                            arg_cnt);
+        throw_runtime_error("Expected %d parameters but got %d",
+                            closure->func->num_params, arg_cnt);
         return false;
     }
 
@@ -91,7 +91,7 @@ static bool call(ObjectClosure_t *closure, int arg_cnt) {
     return true;
 }
 
-static bool call_value(Value_t callee, int arg_cnt) {
+bool call_value(Value_t callee, int arg_cnt) {
     if (IS_OBJ_VAL(callee)) {
         switch (OBJ_TYPE(callee)) {
             case OBJ_CLOSURE:
@@ -105,13 +105,15 @@ static bool call_value(Value_t callee, int arg_cnt) {
             }
             case OBJ_CLASS: {
                 ObjectClass_t *class_ = GET_CLASS(callee);
-                vm.stack_top[-arg_cnt - 1] = DECL_OBJ_VAL(create_instance(class_));
+                vm.stack_top[-arg_cnt - 1] =
+                    DECL_OBJ_VAL(create_instance(class_));
                 // constructor check
                 Value_t *constructor = get(&class_->methods, vm.init_str);
                 if (constructor) {
                     return call(GET_CLOSURE(*constructor), arg_cnt);
                 } else if (arg_cnt != 0) {
-                    throw_runtime_error("Class without initializer expected 0 arguments but got %d",
+                    throw_runtime_error("Class without initializer expected 0 "
+                                        "arguments but got %d",
                                         arg_cnt);
                 }
                 return true;
@@ -125,17 +127,18 @@ static bool call_value(Value_t callee, int arg_cnt) {
                 break;
         }
     }
-    throw_runtime_error("You attempted call something that isn't a function or class");
+    throw_runtime_error(
+        "You attempted call something that isn't a function or class");
     return false;
 }
 
-static void reset_stack() {
+void reset_stack() {
     vm.stack_top = vm.stack;
     vm.frame_cnt = 0;
     vm.open_upvalues = NULL;
 }
 
-static void throw_runtime_error(const char *format, ...) {
+void throw_runtime_error(const char *format, ...) {
     va_list args;
     va_start(args, format);
     vfprintf(stderr, format, args);
@@ -159,11 +162,12 @@ static void throw_runtime_error(const char *format, ...) {
     reset_stack();
 }
 
-static bool is_falsey(Value_t value) {
-    return IS_NONE_VAL(value) || (IS_BOOL_VAL(value) && GET_BOOL_VAL(value) == false);
+bool is_falsey(Value_t value) {
+    return IS_NONE_VAL(value) ||
+           (IS_BOOL_VAL(value) && GET_BOOL_VAL(value) == false);
 }
 
-static void concatenate() {
+void concatenate() {
     ObjectStr_t *b = GET_STR_VAL(peek(0));
     ObjectStr_t *a = GET_STR_VAL(peek(1));
 
@@ -179,7 +183,7 @@ static void concatenate() {
     push(DECL_OBJ_VAL(res));
 }
 
-static ObjectUpvalue_t *capture_upvalue(Value_t *local) {
+ObjectUpvalue_t *capture_upvalue(Value_t *local) {
     ObjectUpvalue_t *prev_upvalue = NULL;
     ObjectUpvalue_t *cur_upvalue = vm.open_upvalues;
 
@@ -203,7 +207,7 @@ static ObjectUpvalue_t *capture_upvalue(Value_t *local) {
     return new_upvalue;
 }
 
-static void close_upvalues(Value_t *last) {
+void close_upvalues(Value_t *last) {
     while (vm.open_upvalues != NULL && vm.open_upvalues->location >= last) {
         ObjectUpvalue_t *upvalue = vm.open_upvalues;
         upvalue->closed = *upvalue->location;
@@ -212,26 +216,27 @@ static void close_upvalues(Value_t *last) {
     }
 }
 
-static void define_method(ObjectStr_t *name) {
+void define_method(ObjectStr_t *name) {
     Value_t method = peek(0);
     ObjectClass_t *class_ = GET_CLASS(peek(1));
     insert(&class_->methods, name, method);
     pop();
 }
 
-static bool bind_method(ObjectClass_t *class_, ObjectStr_t *name) {
+bool bind_method(ObjectClass_t *class_, ObjectStr_t *name) {
     Value_t *method = get(&class_->methods, name);
     if (method == NULL) {
         throw_runtime_error("Undefined field '%s'", name->chars);
         return false;
     }
-    ObjectBoundMethod_t *bound = create_bound_method(peek(0), GET_CLOSURE(*method));
+    ObjectBoundMethod_t *bound =
+        create_bound_method(peek(0), GET_CLOSURE(*method));
     pop();
     push(DECL_OBJ_VAL(bound));
     return true;
 }
 
-static bool invoke_from_class(ObjectClass_t *class_, ObjectStr_t *name, int arg_cnt) {
+bool invoke_from_class(ObjectClass_t *class_, ObjectStr_t *name, int arg_cnt) {
     Value_t *method = get(&class_->methods, name);
     if (!method) {
         throw_runtime_error("'%s' is undefined", name->chars);
@@ -240,10 +245,11 @@ static bool invoke_from_class(ObjectClass_t *class_, ObjectStr_t *name, int arg_
     return call(GET_CLOSURE(*method), arg_cnt);
 }
 
-static bool invoke(ObjectStr_t *name, int arg_cnt) {
+bool invoke(ObjectStr_t *name, int arg_cnt) {
     Value_t receiver = peek(arg_cnt);
     if (!IS_INSTANCE(receiver)) {
-        throw_runtime_error("You tried to invoke a method from something that wasn't an instance");
+        throw_runtime_error("You tried to invoke a method from something that "
+                            "wasn't an instance");
         return false;
     }
 
@@ -256,15 +262,19 @@ static bool invoke(ObjectStr_t *name, int arg_cnt) {
     return invoke_from_class(instance->class_, name, arg_cnt);
 }
 
-static InterpretResult_t run() {
+InterpretResult_t run() {
     CallFrame_t *frame = &vm.frames[vm.frame_cnt - 1];
 
 #define READ_BYTE() (*frame->pc++)
-#define READ_LONG()                                                                                \
-    (frame->pc += 3, (uint32_t)((frame->pc[-3]) | (frame->pc[-2] << 8) | (frame->pc[-1] << 16)))
-#define READ_SHORT() (frame->pc += 2, (uint16_t)((frame->pc[-2] << 8) | frame->pc[-1]))
-#define READ_CONSTANT() (frame->closure->func->chunk.constants.values[READ_BYTE()])
-#define READ_CONSTANT_LONG() (frame->closure->func->chunk.constants.values[READ_LONG()])
+#define READ_LONG()                                                            \
+    (frame->pc += 3, (uint32_t)((frame->pc[-3]) | (frame->pc[-2] << 8) |       \
+                                (frame->pc[-1] << 16)))
+#define READ_SHORT()                                                           \
+    (frame->pc += 2, (uint16_t)((frame->pc[-2] << 8) | frame->pc[-1]))
+#define READ_CONSTANT()                                                        \
+    (frame->closure->func->chunk.constants.values[READ_BYTE()])
+#define READ_CONSTANT_LONG()                                                   \
+    (frame->closure->func->chunk.constants.values[READ_LONG()])
 #define READ_STRING() GET_STR_VAL(READ_CONSTANT())
 #define READ_STRING_LONG() GET_STR_VAL(READ_CONSTANT_LONG())
 
@@ -278,8 +288,9 @@ static InterpretResult_t run() {
             printf(" ]");
         }
         printf("\n");
-        disassemble_instruction(&frame->closure->func->chunk,
-                                (int)(frame->pc - frame->closure->func->chunk.code));
+        disassemble_instruction(
+            &frame->closure->func->chunk,
+            (int)(frame->pc - frame->closure->func->chunk.code));
 #endif
 
         uint8_t instruction;
@@ -330,8 +341,8 @@ static InterpretResult_t run() {
                 } else if (IS_NUM_VAL(peek(0)) && IS_NUM_VAL(peek(1))) {
                     BINARY_OP(DECL_NUM_VAL, +);
                 } else {
-                    throw_runtime_error(
-                        "Runtime Error: Operands are not both strings or both numbers");
+                    throw_runtime_error("Runtime Error: Operands are not both "
+                                        "strings or both numbers");
                 }
                 break;
             }
@@ -349,7 +360,8 @@ static InterpretResult_t run() {
             }
             case OP_NEGATE: {
                 if (!IS_NUM_VAL(peek(0))) {
-                    throw_runtime_error("Runtme Error: Operand is not a number ");
+                    throw_runtime_error(
+                        "Runtme Error: Operand is not a number ");
                     return INTERPRET_RUNTIME_ERROR;
                 }
                 push(DECL_NUM_VAL(-GET_NUM_VAL(pop())));
@@ -380,8 +392,9 @@ static InterpretResult_t run() {
                 ObjectStr_t *global_name = READ_STRING();
                 Value_t *value = get(&vm.globals, global_name);
                 if (value == NULL) {
-                    throw_runtime_error("This variable has not been defined '%s'",
-                                        global_name->chars);
+                    throw_runtime_error(
+                        "This variable has not been defined '%s'",
+                        global_name->chars);
                     return INTERPRET_RUNTIME_ERROR;
                 }
                 push(*value);
@@ -391,8 +404,9 @@ static InterpretResult_t run() {
                 ObjectStr_t *global_name = READ_STRING_LONG();
                 Value_t *value = get(&vm.globals, global_name);
                 if (value == NULL) {
-                    throw_runtime_error("This variable has not been defined '%s'",
-                                        global_name->chars);
+                    throw_runtime_error(
+                        "This variable has not been defined '%s'",
+                        global_name->chars);
                     return INTERPRET_RUNTIME_ERROR;
                 }
                 push(*value);
@@ -402,8 +416,9 @@ static InterpretResult_t run() {
                 ObjectStr_t *global_name = READ_STRING();
                 if (insert(&vm.globals, global_name, peek(0))) {
                     drop(&vm.globals, global_name);
-                    throw_runtime_error("Undefined variable name '%s' LET's define it!",
-                                        global_name->chars);
+                    throw_runtime_error(
+                        "Undefined variable name '%s' LET's define it!",
+                        global_name->chars);
                     return INTERPRET_RUNTIME_ERROR;
                 }
                 break;
@@ -412,8 +427,9 @@ static InterpretResult_t run() {
                 ObjectStr_t *global_name = READ_STRING_LONG();
                 if (insert(&vm.globals, global_name, peek(0))) {
                     drop(&vm.globals, global_name);
-                    throw_runtime_error("Undefined variable name '%s' LET's define it!",
-                                        global_name->chars);
+                    throw_runtime_error(
+                        "Undefined variable name '%s' LET's define it!",
+                        global_name->chars);
                     return INTERPRET_RUNTIME_ERROR;
                 }
                 break;
@@ -471,7 +487,8 @@ static InterpretResult_t run() {
                     uint8_t is_local = READ_BYTE();
                     uint8_t idx = READ_BYTE();
                     if (is_local) {
-                        closure->upvalues[i] = capture_upvalue(frame->slots + idx);
+                        closure->upvalues[i] =
+                            capture_upvalue(frame->slots + idx);
                     } else {
                         closure->upvalues[i] = frame->closure->upvalues[idx];
                     }
@@ -503,7 +520,8 @@ static InterpretResult_t run() {
             }
             case OP_GET_PROPERTY: {
                 if (!IS_INSTANCE(peek(0))) {
-                    throw_runtime_error("Only instances of a class have fields");
+                    throw_runtime_error(
+                        "Only instances of a class have fields");
                     return INTERPRET_RUNTIME_ERROR;
                 }
                 ObjectInstance_t *instance = GET_INSTANCE(peek(0));
@@ -552,12 +570,13 @@ static InterpretResult_t run() {
             case OP_INHERIT: {
                 Value_t superclass = peek(1);
                 if (!IS_CLASS(superclass)) {
-                    throw_runtime_error(
-                        "You tried to inherit from something that wasn't a class :(");
+                    throw_runtime_error("You tried to inherit from something "
+                                        "that wasn't a class :(");
                     return INTERPRET_RUNTIME_ERROR;
                 }
                 ObjectClass_t *subclass = GET_CLASS(peek(0));
-                table_add_all(&GET_CLASS(superclass)->methods, &subclass->methods);
+                table_add_all(&GET_CLASS(superclass)->methods,
+                              &subclass->methods);
                 pop(); // pop off the subclass
                 break;
             }
@@ -608,7 +627,8 @@ static InterpretResult_t run() {
                     return INTERPRET_OK;
                 }
 
-                vm.stack_top = frame->slots; // go back to where caller locals are
+                vm.stack_top =
+                    frame->slots; // go back to where caller locals are
                 push(res);
                 frame = &vm.frames[vm.frame_cnt - 1]; // return to callers frame
                 break;

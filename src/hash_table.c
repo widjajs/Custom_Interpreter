@@ -15,7 +15,7 @@ void free_hash_table(HashTable_t *hash_table) {
     init_hash_table(hash_table);
 }
 
-static Node_t *find_insertion_slot(Node_t *table, ObjectStr_t *key, int capacity) {
+Node_t *find_insertion_slot(Node_t *table, ObjectStr_t *key, int capacity) {
     uint32_t idx = key->hash & (capacity - 1);
     Node_t *tombstone = NULL;
     for (;;) {
@@ -35,7 +35,7 @@ static Node_t *find_insertion_slot(Node_t *table, ObjectStr_t *key, int capacity
     return NULL;
 }
 
-static void resize_table(HashTable_t *hash_table, int new_capacity) {
+void resize_table(HashTable_t *hash_table, int new_capacity) {
     // Node_t *new_table = (Node_t *)malloc(sizeof(Node_t) * new_capacity);
     Node_t *new_table = ALLOCATE(Node_t, new_capacity);
     if (new_table == NULL) {
@@ -55,7 +55,8 @@ static void resize_table(HashTable_t *hash_table, int new_capacity) {
         if (cur_slot->key == NULL) {
             continue;
         }
-        Node_t *new_slot = find_insertion_slot(new_table, cur_slot->key, new_capacity);
+        Node_t *new_slot =
+            find_insertion_slot(new_table, cur_slot->key, new_capacity);
         new_slot->key = cur_slot->key;
         new_slot->value = cur_slot->value;
         hash_table->num_elems++;
@@ -72,7 +73,8 @@ bool insert(HashTable_t *hash_table, ObjectStr_t *key, Value_t value) {
         resize_table(hash_table, new_capacity);
     }
 
-    Node_t *new_slot = find_insertion_slot(hash_table->table, key, hash_table->capacity);
+    Node_t *new_slot =
+        find_insertion_slot(hash_table->table, key, hash_table->capacity);
     if (new_slot == NULL) {
         fprintf(stderr, "Error: hash table insertion failed");
         return false;
@@ -93,7 +95,8 @@ Value_t *get(HashTable_t *hash_table, ObjectStr_t *key) {
         return NULL;
     }
 
-    Node_t *node = find_insertion_slot(hash_table->table, key, hash_table->capacity);
+    Node_t *node =
+        find_insertion_slot(hash_table->table, key, hash_table->capacity);
     if (node->key == NULL) {
         return NULL;
     }
@@ -105,7 +108,8 @@ bool drop(HashTable_t *hash_table, ObjectStr_t *key) {
         return false;
     }
 
-    Node_t *node = find_insertion_slot(hash_table->table, key, hash_table->capacity);
+    Node_t *node =
+        find_insertion_slot(hash_table->table, key, hash_table->capacity);
     if (node->key == NULL) {
         return false;
     }
@@ -115,7 +119,8 @@ bool drop(HashTable_t *hash_table, ObjectStr_t *key) {
     return true;
 }
 
-ObjectStr_t *find_str(HashTable_t *hash_table, const char *chars, int length, uint32_t hash) {
+ObjectStr_t *find_str(HashTable_t *hash_table, const char *chars, int length,
+                      uint32_t hash) {
     if (hash_table->table == NULL || hash_table->num_elems == 0) {
         return NULL;
     }

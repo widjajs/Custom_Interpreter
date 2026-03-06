@@ -36,7 +36,8 @@ typedef enum {
     OBJ_BOUND_METHOD
 } ObjectType_t;
 
-// Object_t* can safely cast to ObjectStr_t* if Object_t* pts to ObjectStr_t field
+// Object_t* can safely cast to ObjectStr_t* if Object_t* pts to ObjectStr_t
+// field
 struct Object_t {
     ObjectType_t type;
     struct Object_t *next; // for linked list allowing garbage collection
@@ -109,6 +110,7 @@ ObjectClosure_t *create_closure(ObjectFunc_t *func);
 ObjectUpvalue_t *create_upvalue(Value_t *slot);
 ObjectClass_t *create_class(ObjectStr_t *name);
 ObjectInstance_t *create_instance(ObjectClass_t *class_);
-ObjectBoundMethod_t *create_bound_method(Value_t receiver, ObjectClosure_t *method);
+ObjectBoundMethod_t *create_bound_method(Value_t receiver,
+                                         ObjectClosure_t *method);
 
 #endif

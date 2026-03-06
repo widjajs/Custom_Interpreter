@@ -40,7 +40,7 @@ void *resize(void *ptr, size_t type_size, int old_capacity, int new_capacity) {
     return res;
 }
 
-static void free_object(Object_t *object) {
+void free_object(Object_t *object) {
 #ifdef DEBUG_LOG_GC
     printf("%p freed type %d\n", (void *)object, object->type);
 #endif
@@ -106,7 +106,8 @@ void mark_object(Object_t *object) {
     object->is_marked = true;
     if (vm.grey_capacity < vm.grey_cnt + 1) {
         vm.grey_capacity = grow_capacity(vm.grey_capacity);
-        vm.grey_stack = realloc(vm.grey_stack, sizeof(Object_t *) * vm.grey_capacity);
+        vm.grey_stack =
+            realloc(vm.grey_stack, sizeof(Object_t *) * vm.grey_capacity);
         if (vm.grey_stack == NULL) {
             // unlikely but just in case
             exit(1);
@@ -130,7 +131,8 @@ void mark_roots() {
     for (int i = 0; i < vm.frame_cnt; i++) {
         mark_object((Object_t *)vm.frames[i].closure); // mark closures too
     }
-    for (ObjectUpvalue_t *upvalue = vm.open_upvalues; upvalue != NULL; upvalue = upvalue->next) {
+    for (ObjectUpvalue_t *upvalue = vm.open_upvalues; upvalue != NULL;
+         upvalue = upvalue->next) {
         mark_object((Object_t *)upvalue); // upvalues are reachable too
     }
     mark_table(&vm.globals); // mark globals
@@ -239,8 +241,8 @@ void collect_garbage() {
 
 #ifdef DEBUG_LOG_GC
     printf("-- gc done\n");
-    printf(" collected %ld bytes (from %ld to %ld) next at %ld\n", before - vm.bytes_allocated,
-           before, vm.bytes_allocated, vm.next_GC);
+    printf(" collected %ld bytes (from %ld to %ld) next at %ld\n",
+           before - vm.bytes_allocated, before, vm.bytes_allocated, vm.next_GC);
 #endif
 }
 

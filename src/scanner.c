@@ -2,15 +2,16 @@
 
 Scanner_t scanner;
 
-static bool at_end();
-static bool is_digit(char c);
-static bool is_alpha(char c);
-static TokenType_t get_identifier_type();
-static TokenType_t check_keyword(int start, int length, const char *rest, TokenType_t type);
-static Token_t init_token(TokenType_t type);
-static Token_t init_error_token(const char *err_msg);
+bool at_end();
+bool is_digit(char c);
+bool is_alpha(char c);
+TokenType_t get_identifier_type();
+TokenType_t check_keyword(int start, int length, const char *rest,
+                          TokenType_t type);
+Token_t init_token(TokenType_t type);
+Token_t init_error_token(const char *err_msg);
 static char peek();
-static char peek_next();
+char peek_next();
 static char consume();
 
 void init_scanner(const char *file) {
@@ -91,17 +92,19 @@ Token_t scan_token() {
         case '!':
             return init_token(check_next('=') ? TOKEN_NOT_EQUAL : TOKEN_NOT);
         case '=':
-            return init_token(check_next('=') ? TOKEN_EQUAL_EQUAL : TOKEN_EQUAL);
+            return init_token(check_next('=') ? TOKEN_EQUAL_EQUAL
+                                              : TOKEN_EQUAL);
         case '<': {
             if (check_next('<')) {
                 return init_token(TOKEN_LEFT_SHIFT);
             }
-            return init_token(check_next('=') ? TOKEN_LESS_THAN_EQUAL : TOKEN_LESS_THAN);
+            return init_token(check_next('=') ? TOKEN_LESS_THAN_EQUAL
+                                              : TOKEN_LESS_THAN);
         }
         case '>': {
-            if (check_next('>'))
-                return init_token(TOKEN_RIGHT_SHIFT);
-            return init_token(check_next('=') ? TOKEN_GREATER_THAN_EQUAL : TOKEN_GREATER_THAN);
+            if (check_next('>')) return init_token(TOKEN_RIGHT_SHIFT);
+            return init_token(check_next('=') ? TOKEN_GREATER_THAN_EQUAL
+                                              : TOKEN_GREATER_THAN);
         }
         case '"': {
             while (!at_end() && peek() != '"') {
@@ -121,29 +124,28 @@ Token_t scan_token() {
     return init_error_token("Unexpected token");
 }
 
-static bool is_digit(char c) {
+bool is_digit(char c) {
     return c >= '0' && c <= '9';
 }
 
-static bool is_alpha(char c) {
+bool is_alpha(char c) {
     return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c == '_');
 }
 
-static char peek() {
+char peek() {
     return *scanner.cur;
 }
 
-static char peek_next() {
-    if (at_end())
-        return '\0';
+char peek_next() {
+    if (at_end()) return '\0';
     return *(scanner.cur + 1);
 }
 
-static char consume() {
+char consume() {
     return *scanner.cur++;
 }
 
-static TokenType_t get_identifier_type() {
+TokenType_t get_identifier_type() {
     // check if it's a keyword first
     switch (*scanner.start) {
         case 'a':
@@ -196,7 +198,8 @@ static TokenType_t get_identifier_type() {
     return TOKEN_IDENTIFIER;
 }
 
-static TokenType_t check_keyword(int start, int length, const char *rest, TokenType_t type) {
+TokenType_t check_keyword(int start, int length, const char *rest,
+                          TokenType_t type) {
     if (scanner.cur - scanner.start == start + length &&
         strncmp(scanner.start + start, rest, length) == 0) {
         return type;
@@ -204,7 +207,7 @@ static TokenType_t check_keyword(int start, int length, const char *rest, TokenT
     return TOKEN_IDENTIFIER;
 }
 
-static Token_t init_token(TokenType_t type) {
+Token_t init_token(TokenType_t type) {
     Token_t new_token;
     new_token.type = type;
     new_token.start = scanner.start;
@@ -213,7 +216,7 @@ static Token_t init_token(TokenType_t type) {
     return new_token;
 }
 
-static Token_t init_error_token(const char *err_msg) {
+Token_t init_error_token(const char *err_msg) {
     Token_t err_token;
     err_token.type = TOKEN_ERROR;
     err_token.start = scanner.start;
@@ -222,7 +225,7 @@ static Token_t init_error_token(const char *err_msg) {
     return err_token;
 }
 
-static bool at_end() {
+bool at_end() {
     return *scanner.cur == '\0';
 }
 

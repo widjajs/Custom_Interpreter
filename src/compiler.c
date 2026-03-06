@@ -5,49 +5,47 @@
 
 #include <stdint.h>
 
-// TODO: 574
-
 Parser_t parser;
 Chunk_t *cur_chunk = NULL;
 Compiler_t *cur_compiler = NULL;
 ClassCompiler_t *cur_class = NULL;
 
-static void go_next();
-static void expression();
-static bool check(TokenType_t type);
+void go_next();
+void expression();
+bool check(TokenType_t type);
 static void consume(TokenType_t type, const char *msg);
-static void report_error(Token_t *token, const char *msg);
-static ObjectFunc_t *stop_compiler();
+void report_error(Token_t *token, const char *msg);
+ObjectFunc_t *stop_compiler();
 
-static void number(bool can_assign);
-static void grouping(bool can_assign);
-static void unary(bool can_assign);
-static void binary(bool can_assign);
-static void literal(bool can_assign);
-static void string(bool can_assign);
-static void let(bool can_assign);
-static void parse_precedence(Precedence_t prec);
-static void and_(bool can_assign);
-static void or_(bool can_assign);
-static void block();
+void number(bool can_assign);
+void grouping(bool can_assign);
+void unary(bool can_assign);
+void binary(bool can_assign);
+void literal(bool can_assign);
+void string(bool can_assign);
+void let(bool can_assign);
+void parse_precedence(Precedence_t prec);
+void and_(bool can_assign);
+void or_(bool can_assign);
+void block();
 static void call(bool can_assign);
-static int constant_identifier(Chunk_t *chunk, HashTable_t *ids, ObjectStr_t *name);
-static void emit_sized_opcode(OpCode_t short_op, OpCode_t long_op, int operand);
-static void dot(bool can_assign);
-static void named_let(Token_t name, bool can_assign);
-static void this_(bool can_assign);
-static void add_local(Token_t token);
-static void end_scope();
-static void super_(bool can_assign);
+int constant_identifier(Chunk_t *chunk, HashTable_t *ids, ObjectStr_t *name);
+void emit_sized_opcode(OpCode_t short_op, OpCode_t long_op, int operand);
+void dot(bool can_assign);
+void named_let(Token_t name, bool can_assign);
+void this_(bool can_assign);
+void add_local(Token_t token);
+void end_scope();
+void super_(bool can_assign);
 
-static bool match(TokenType_t type);
-static void statement();
-static void declaration();
-static int parse_let(const char *msg);
-static void declare_let();
+bool match(TokenType_t type);
+void statement();
+void declaration();
+int parse_let(const char *msg);
+void declare_let();
 
 void init_compiler(Compiler_t *compiler, FuncType_t type);
-static bool identifiers_equals(Token_t *a, Token_t *b);
+bool identifiers_equals(Token_t *a, Token_t *b);
 
 HashTable_t compiler_ids;
 
@@ -78,21 +76,21 @@ void mark_compiler_roots() {
 
 // ===================================================================================================
 
-static Chunk_t *get_cur_chunk() {
+Chunk_t *get_cur_chunk() {
     return &cur_compiler->func->chunk;
 }
 
-static void emit_byte(uint8_t byte) {
+void emit_byte(uint8_t byte) {
     write_chunk(get_cur_chunk(), byte, parser.prev.line);
 }
 
 // convenience function for writing opcode followed by 1-byte operand
-static void emit_bytes(uint8_t byte_1, uint8_t byte_2) {
+void emit_bytes(uint8_t byte_1, uint8_t byte_2) {
     emit_byte(byte_1);
     emit_byte(byte_2);
 }
 
-static void emit_return() {
+void emit_return() {
     if (cur_compiler->type == TYPE_INITIAZLIER) {
         emit_bytes(OP_GET_LOCAL, 0);
     } else {
@@ -113,7 +111,8 @@ void init_compiler(Compiler_t *compiler, FuncType_t type) {
     cur_compiler = compiler;
 
     if (type != TYPE_SCRIPT) {
-        cur_compiler->func->name = allocate_str(parser.prev.start, parser.prev.length);
+        cur_compiler->func->name =
+            allocate_str(parser.prev.start, parser.prev.length);
     }
 
     // stack slot zero is claimed for VM internal use
@@ -132,12 +131,13 @@ void init_compiler(Compiler_t *compiler, FuncType_t type) {
     }
 }
 
-static ObjectFunc_t *stop_compiler() {
+ObjectFunc_t *stop_compiler() {
     emit_return();
     ObjectFunc_t *func = cur_compiler->func;
 #ifdef DEBUG_PRINT_CODE
     if (!parser.has_error) {
-        disassemble_chunk(get_cur_chunk(), func->name != NULL ? func->name->chars : "<script>");
+        disassemble_chunk(get_cur_chunk(),
+                          func->name != NULL ? func->name->chars : "<script>");
     }
 #endif
     if (cur_compiler->locals != NULL) {
@@ -194,7 +194,7 @@ ParseRule_t rules[] = {
     [TOKEN_END_FILE] = {NULL, NULL, PREC_NONE},
 };
 
-static void this_(bool can_assign) {
+void this_(bool can_assign) {
     if (cur_class == NULL) {
         report_error(&parser.cur, "Cannot use 'this' outside of a class");
         return;
@@ -202,28 +202,29 @@ static void this_(bool can_assign) {
     let(false);
 }
 
-static void expression() {
+void expression() {
     parse_precedence(PREC_ASSIGN);
 }
 
-static void print_statement() {
+void print_statement() {
     expression();
     consume(TOKEN_SEMICOLON, "Expected ';'. Got empty :(");
     emit_byte(OP_PRINT);
 }
 
-static void expression_statement() {
+void expression_statement() {
     expression();
     consume(TOKEN_SEMICOLON, "Expected ';'. Put the semicolon please!");
     emit_byte(OP_POP);
 }
 
-static void mark_initialized() {
+void mark_initialized() {
     if (cur_compiler->scope_depth == 0) {
         // allows for recursion and globals
         return;
     }
-    cur_compiler->locals[cur_compiler->local_cnt - 1].depth = cur_compiler->scope_depth;
+    cur_compiler->locals[cur_compiler->local_cnt - 1].depth =
+        cur_compiler->scope_depth;
 }
 
 void define_let(int global_id) {
@@ -241,13 +242,14 @@ void define_let(int global_id) {
     }
 }
 
-static uint8_t arg_list() {
+uint8_t arg_list() {
     uint8_t arg_cnt = 0;
     if (!check(TOKEN_CLOSE_PAREN)) {
         do {
             expression();
             if (arg_cnt == 255) {
-                report_error(&parser.cur, "Cannot have more than 255 parameters");
+                report_error(&parser.cur,
+                             "Cannot have more than 255 parameters");
             }
             arg_cnt++;
         } while (match(TOKEN_COMMA));
@@ -257,8 +259,9 @@ static uint8_t arg_list() {
     return arg_cnt;
 }
 
-static void let_declaration() {
-    int global_id = parse_let("Expected variable name. LET's put a great name :)");
+void let_declaration() {
+    int global_id =
+        parse_let("Expected variable name. LET's put a great name :)");
 
     if (match(TOKEN_EQUAL)) {
         expression();
@@ -270,7 +273,7 @@ static void let_declaration() {
 }
 
 // get us out of panic mode by consuming till the next semicolon
-static void synchronize() {
+void synchronize() {
     parser.is_panicking = false;
     while (parser.cur.type != TOKEN_END_FILE) {
         if (parser.prev.type == TOKEN_SEMICOLON) {
@@ -283,7 +286,7 @@ static void synchronize() {
     }
 }
 
-static void function(FuncType_t type) {
+void function(FuncType_t type) {
     Compiler_t compiler;
     init_compiler(&compiler, type);
     cur_compiler->scope_depth++;
@@ -319,17 +322,19 @@ static void function(FuncType_t type) {
     }
 }
 
-static void func_declaration() {
+void func_declaration() {
     uint8_t global_id = parse_let("Expected function name");
     mark_initialized();
     function(TYPE_FUNCTION);
     define_let(global_id);
 }
 
-static void method() {
+void method() {
     consume(TOKEN_IDENTIFIER, "Expected method name");
-    ObjectStr_t *method_name = allocate_str(parser.prev.start, parser.prev.length);
-    // int operand = constant_identifier(get_cur_chunk(), &compiler_ids, method_name);
+    ObjectStr_t *method_name =
+        allocate_str(parser.prev.start, parser.prev.length);
+    // int operand = constant_identifier(get_cur_chunk(), &compiler_ids,
+    // method_name);
     int operand = add_constant(get_cur_chunk(), DECL_OBJ_VAL(method_name));
 
     FuncType_t type = TYPE_METHOD;
@@ -341,23 +346,26 @@ static void method() {
     emit_sized_opcode(OP_METHOD, OP_METHOD_LONG, operand);
 }
 
-static Token_t synthetic_token(const char *text) {
+Token_t synthetic_token(const char *text) {
     Token_t token;
     token.start = text;
     token.length = (int)strlen(text);
     return token;
 }
 
-static void super_(bool can_assign) {
+void super_(bool can_assign) {
     if (cur_class == NULL) {
         report_error(&parser.cur, "You can't use 'super' outside of a class");
     } else if (!cur_class->has_super_class) {
-        report_error(&parser.cur, "Can't use 'super' in a class with no superclass");
+        report_error(&parser.cur,
+                     "Can't use 'super' in a class with no superclass");
     }
     consume(TOKEN_DOT, "Missing '.' after 'super'");
     consume(TOKEN_IDENTIFIER, "Missing superlcass method name");
-    ObjectStr_t *method_name = allocate_str(parser.prev.start, parser.prev.length);
-    // int operand = constant_identifier(get_cur_chunk(), &compiler_ids, method_name);
+    ObjectStr_t *method_name =
+        allocate_str(parser.prev.start, parser.prev.length);
+    // int operand = constant_identifier(get_cur_chunk(), &compiler_ids,
+    // method_name);
     int operand = add_constant(get_cur_chunk(), DECL_OBJ_VAL(method_name));
 
     named_let(synthetic_token("this"), false);
@@ -368,13 +376,14 @@ static void super_(bool can_assign) {
         emit_sized_opcode(OP_SUPER_INVOKE, OP_SUPER_INVOKE_LONG, operand);
         emit_byte(arg_cnt);
     } else {
-        // let method = super.method() -> other case where we actaully need the memory alloation
+        // let method = super.method() -> other case where we actaully need the
+        // memory alloation
         named_let(synthetic_token("super"), false);
         emit_sized_opcode(OP_GET_SUPER, OP_GET_SUPER_LONG, operand);
     }
 }
 
-static void class_declaration() {
+void class_declaration() {
     consume(TOKEN_IDENTIFIER, "Class name not found");
 
     Token_t class_name = parser.prev;
@@ -398,14 +407,16 @@ static void class_declaration() {
         let(false); // looks up superclass name and pushes it on to stack
 
         if (identifiers_equals(&class_name, &parser.prev)) {
-            report_error(&parser.cur, "Classes cannot inherite from themselves");
+            report_error(&parser.cur,
+                         "Classes cannot inherite from themselves");
         }
 
         cur_compiler->scope_depth++; // begin scope
         add_local(synthetic_token("super"));
         define_let(0);
 
-        named_let(class_name, false); // load subclass that inherits from parent onto stack
+        named_let(class_name,
+                  false); // load subclass that inherits from parent onto stack
         emit_byte(OP_INHERIT);
         class_compiler.has_super_class = true;
     }
@@ -426,7 +437,7 @@ static void class_declaration() {
     cur_class = cur_class->enclosing;
 }
 
-static void declaration() {
+void declaration() {
     if (match(TOKEN_LET)) {
         let_declaration();
     } else if (match(TOKEN_FUNC)) {
@@ -441,7 +452,7 @@ static void declaration() {
     }
 }
 
-static bool match(TokenType_t type) {
+bool match(TokenType_t type) {
     if (parser.cur.type == type) {
         go_next();
         return true;
@@ -449,18 +460,19 @@ static bool match(TokenType_t type) {
     return false;
 }
 
-static void block() {
+void block() {
     while (!check(TOKEN_CLOSE_CURLY) && !check(TOKEN_END_FILE)) {
         declaration();
     }
     consume(TOKEN_CLOSE_CURLY, "Expected '}' to end block");
 }
 
-static void end_scope() {
+void end_scope() {
     cur_compiler->scope_depth--;
     // clean up locals at the end of the block
     while (cur_compiler->local_cnt > 0 &&
-           cur_compiler->locals[cur_compiler->local_cnt - 1].depth > cur_compiler->scope_depth) {
+           cur_compiler->locals[cur_compiler->local_cnt - 1].depth >
+               cur_compiler->scope_depth) {
         if (cur_compiler->locals[cur_compiler->local_cnt - 1].is_captured) {
             emit_byte(OP_CLOSE_UPVALUE); // promote to heap
         } else {
@@ -470,8 +482,9 @@ static void end_scope() {
     }
 }
 
-// put a temporary offset while we calculate the actual offset of branch then replace temp later
-static int emit_branch(uint8_t instruction) {
+// put a temporary offset while we calculate the actual offset of branch then
+// replace temp later
+int emit_branch(uint8_t instruction) {
     emit_byte(instruction);
     emit_byte(0xff);
     emit_byte(0xff);
@@ -479,7 +492,7 @@ static int emit_branch(uint8_t instruction) {
 }
 
 // after we compile thru the then branch we can calculate the true offset
-static void fix_branch(int offset) {
+void fix_branch(int offset) {
     int branch = get_cur_chunk()->count - offset - 2;
 
     if (branch > UINT16_MAX) {
@@ -500,7 +513,7 @@ static void fix_branch(int offset) {
  * else_stmt
  * L2:
  */
-static void if_statement() {
+void if_statement() {
     consume(TOKEN_OPEN_PAREN, "Expected '(' after if");
     expression(); // condition
     consume(TOKEN_CLOSE_PAREN, "Expected ')' after condition statement");
@@ -525,7 +538,7 @@ static void if_statement() {
  * right condition
  * end:
  */
-static void and_(bool can_assign) {
+void and_(bool can_assign) {
     int end_branch = emit_branch(OP_BRANCH_IF_FALSE);
 
     emit_byte(OP_POP);
@@ -542,7 +555,7 @@ static void and_(bool can_assign) {
  * right condition
  * end:
  */
-static void or_(bool can_assign) {
+void or_(bool can_assign) {
     int else_branch = emit_branch(OP_BRANCH_IF_FALSE);
     int end_branch = emit_branch(OP_BRANCH);
 
@@ -552,7 +565,7 @@ static void or_(bool can_assign) {
     fix_branch(end_branch);
 }
 
-static void emit_loop(int loop_start) {
+void emit_loop(int loop_start) {
     emit_byte(OP_LOOP);
 
     int offset = get_cur_chunk()->count - loop_start + 2;
@@ -572,7 +585,7 @@ static void emit_loop(int loop_start) {
  * exit:
  * POP
  */
-static void while_statement() {
+void while_statement() {
     int loop_start = get_cur_chunk()->count;
 
     consume(TOKEN_OPEN_PAREN, "Expected '(' after if");
@@ -600,7 +613,7 @@ static void while_statement() {
  * LOOP
  * exit:
  */
-static void for_statement() {
+void for_statement() {
     cur_compiler->scope_depth++;
     consume(TOKEN_OPEN_PAREN, "Expected '(' after if");
 
@@ -651,7 +664,7 @@ static void for_statement() {
     end_scope();
 }
 
-static void return_statement() {
+void return_statement() {
     if (cur_compiler->type == TYPE_SCRIPT) {
         report_error(&parser.cur, "Cannot return from script-level code");
     }
@@ -659,7 +672,9 @@ static void return_statement() {
         emit_return();
     } else {
         if (cur_compiler->type == TYPE_INITIAZLIER) {
-            report_error(&parser.cur, "You aren't allowed to return a value from an initializer");
+            report_error(
+                &parser.cur,
+                "You aren't allowed to return a value from an initializer");
         }
         expression();
         consume(TOKEN_SEMICOLON, "Expected ';' after return");
@@ -667,7 +682,7 @@ static void return_statement() {
     }
 }
 
-static void statement() {
+void statement() {
     if (match(TOKEN_PRINT)) {
         print_statement();
     } else if (match(TOKEN_IF)) {
@@ -687,13 +702,14 @@ static void statement() {
     }
 }
 
-static void string(bool can_assign) {
+void string(bool can_assign) {
     write_constant(get_cur_chunk(),
-                   DECL_OBJ_VAL(allocate_str(parser.prev.start + 1, parser.prev.length - 2)),
+                   DECL_OBJ_VAL(allocate_str(parser.prev.start + 1,
+                                             parser.prev.length - 2)),
                    parser.prev.line);
 }
 
-static void emit_sized_opcode(OpCode_t short_op, OpCode_t long_op, int operand) {
+void emit_sized_opcode(OpCode_t short_op, OpCode_t long_op, int operand) {
     if (operand <= 255) {
         emit_bytes(short_op, (uint8_t)(operand));
     } else {
@@ -706,7 +722,7 @@ static void emit_sized_opcode(OpCode_t short_op, OpCode_t long_op, int operand) 
 
 // will either get consant id if exists or add it if not
 // helps prevent uneeded duplication of strings in constants array
-static int constant_identifier(Chunk_t *chunk, HashTable_t *ids, ObjectStr_t *name) {
+int constant_identifier(Chunk_t *chunk, HashTable_t *ids, ObjectStr_t *name) {
     Value_t *existing = get(ids, name);
     if (existing != NULL) {
         // alr exists so return saved idx instead of allcoating new one
@@ -717,12 +733,14 @@ static int constant_identifier(Chunk_t *chunk, HashTable_t *ids, ObjectStr_t *na
     return idx;
 }
 
-static int resolve_local(Compiler_t *compiler, Token_t *name) {
+int resolve_local(Compiler_t *compiler, Token_t *name) {
     for (int i = compiler->local_cnt - 1; i >= 0; i--) {
         Local_t *local = &compiler->locals[i];
         if (identifiers_equals(name, &local->name)) {
             if (local->depth == -1) {
-                report_error(&parser.prev, "Can't read local variable when it's being initialized");
+                report_error(
+                    &parser.prev,
+                    "Can't read local variable when it's being initialized");
             }
             return i;
         }
@@ -730,7 +748,7 @@ static int resolve_local(Compiler_t *compiler, Token_t *name) {
     return -1;
 }
 
-static int add_upvalue(Compiler_t *compiler, uint8_t idx, bool is_local) {
+int add_upvalue(Compiler_t *compiler, uint8_t idx, bool is_local) {
     int upvalue_cnt = compiler->func->upvalue_cnt;
 
     // check if upvalue already been declared
@@ -742,7 +760,8 @@ static int add_upvalue(Compiler_t *compiler, uint8_t idx, bool is_local) {
     }
 
     if (upvalue_cnt == 256) {
-        report_error(&parser.cur, "You have too many closure variables in a function");
+        report_error(&parser.cur,
+                     "You have too many closure variables in a function");
         return 0;
     }
 
@@ -751,7 +770,7 @@ static int add_upvalue(Compiler_t *compiler, uint8_t idx, bool is_local) {
     return compiler->func->upvalue_cnt++;
 }
 
-static int resolve_upvalue(Compiler_t *compiler, Token_t *name) {
+int resolve_upvalue(Compiler_t *compiler, Token_t *name) {
     if (compiler->enclosing == NULL) {
         // not upvalue and from prev check not local so prbly global
         return -1;
@@ -771,7 +790,7 @@ static int resolve_upvalue(Compiler_t *compiler, Token_t *name) {
     return -1;
 }
 
-static void named_let(Token_t name, bool can_assign) {
+void named_let(Token_t name, bool can_assign) {
     uint8_t get_op;
     uint8_t set_op;
 
@@ -779,12 +798,14 @@ static void named_let(Token_t name, bool can_assign) {
     if (operand != -1) { // local
         get_op = OP_GET_LOCAL;
         set_op = OP_SET_LOCAL;
-    } else if ((operand = resolve_upvalue(cur_compiler, &name)) != -1) { // upvalue
+    } else if ((operand = resolve_upvalue(cur_compiler, &name)) !=
+               -1) { // upvalue
         get_op = OP_GET_UPVALUE;
         set_op = OP_SET_UPVALUE;
     } else {
         ObjectStr_t *global_name = allocate_str(name.start, name.length);
-        operand = constant_identifier(get_cur_chunk(), &compiler_ids, global_name);
+        operand =
+            constant_identifier(get_cur_chunk(), &compiler_ids, global_name);
         get_op = OP_GET_GLOBAL;
         set_op = OP_SET_GLOBAL;
     }
@@ -809,14 +830,16 @@ static void named_let(Token_t name, bool can_assign) {
     }
 }
 
-static void let(bool can_assign) {
+void let(bool can_assign) {
     named_let(parser.prev, can_assign);
 }
 
-static void dot(bool can_assign) {
+void dot(bool can_assign) {
     consume(TOKEN_IDENTIFIER, "Expected field name after '.'");
-    ObjectStr_t *class_name = allocate_str(parser.prev.start, parser.prev.length);
-    // int operand = constant_identifier(get_cur_chunk(), &compiler_ids, class_name);
+    ObjectStr_t *class_name =
+        allocate_str(parser.prev.start, parser.prev.length);
+    // int operand = constant_identifier(get_cur_chunk(), &compiler_ids,
+    // class_name);
     int operand = add_constant(get_cur_chunk(), DECL_OBJ_VAL(class_name));
 
     if (can_assign && match(TOKEN_EQUAL)) {
@@ -833,7 +856,7 @@ static void dot(bool can_assign) {
 
 // ===================================================================================================
 
-static void parse_precedence(Precedence_t prec) {
+void parse_precedence(Precedence_t prec) {
     go_next();
     ParseFunc_t prefix_rule = rules[parser.prev.type].prefix_rule;
     if (prefix_rule == NULL) {
@@ -841,7 +864,8 @@ static void parse_precedence(Precedence_t prec) {
         return;
     }
 
-    // only assign if we are in the lowest precedence otherwise thing like a = b * c might break
+    // only assign if we are in the lowest precedence otherwise thing like a = b
+    // * c might break
     bool can_assign = prec <= PREC_ASSIGN;
     prefix_rule(can_assign);
 
@@ -856,12 +880,12 @@ static void parse_precedence(Precedence_t prec) {
     }
 }
 
-static void add_local(Token_t token) {
+void add_local(Token_t token) {
     if (cur_compiler->local_cnt + 1 > cur_compiler->local_cap) {
         int old_capacity = cur_compiler->local_cnt;
         cur_compiler->local_cap = grow_capacity(old_capacity);
-        cur_compiler->locals =
-            resize(cur_compiler->locals, sizeof(Local_t), old_capacity, cur_compiler->local_cap);
+        cur_compiler->locals = resize(cur_compiler->locals, sizeof(Local_t),
+                                      old_capacity, cur_compiler->local_cap);
     }
     Local_t *local = &cur_compiler->locals[cur_compiler->local_cnt++];
     local->name = token;
@@ -869,14 +893,14 @@ static void add_local(Token_t token) {
     local->is_captured = false;
 }
 
-static bool identifiers_equals(Token_t *a, Token_t *b) {
+bool identifiers_equals(Token_t *a, Token_t *b) {
     if (a->length != b->length) {
         return false;
     }
     return memcmp(a->start, b->start, a->length) == 0;
 }
 
-static void declare_let() {
+void declare_let() {
     // this func does decl for locals so exit if we are declaring global
     if (cur_compiler->scope_depth == 0) {
         return;
@@ -895,7 +919,7 @@ static void declare_let() {
     add_local(parser.prev);
 }
 
-static int parse_let(const char *msg) {
+int parse_let(const char *msg) {
     // parse variable and add constant byte to chunk
     consume(TOKEN_IDENTIFIER, msg);
     declare_let();
@@ -904,11 +928,12 @@ static int parse_let(const char *msg) {
         return 0;
     }
     // global variable declaration
-    return add_constant(get_cur_chunk(),
-                        DECL_OBJ_VAL(allocate_str(parser.prev.start, parser.prev.length)));
+    return add_constant(
+        get_cur_chunk(),
+        DECL_OBJ_VAL(allocate_str(parser.prev.start, parser.prev.length)));
 }
 
-static void literal(bool can_assign) {
+void literal(bool can_assign) {
     switch (parser.prev.type) {
         case TOKEN_FALSE:
             emit_byte(OP_FALSE);
@@ -924,21 +949,22 @@ static void literal(bool can_assign) {
     }
 }
 
-static void number(bool can_assign) {
+void number(bool can_assign) {
     double val = strtod(parser.prev.start, NULL);
     write_constant(get_cur_chunk(), DECL_NUM_VAL(val), parser.prev.line);
 }
 
-static void grouping(bool can_assign) {
+void grouping(bool can_assign) {
     expression();
     consume(TOKEN_CLOSE_PAREN, "Expect ')' after expression");
 }
 
-static void unary(bool can_assign) {
+void unary(bool can_assign) {
     TokenType_t op_type = parser.prev.type;
     parse_precedence(PREC_UNARY);
 
-    // negate operator emitted last bc we need value first so we have smtg to negate
+    // negate operator emitted last bc we need value first so we have smtg to
+    // negate
     switch (op_type) {
         case TOKEN_NOT:
             emit_byte(OP_NOT);
@@ -951,7 +977,7 @@ static void unary(bool can_assign) {
     }
 }
 
-static void binary(bool can_assign) {
+void binary(bool can_assign) {
     // left operator
     TokenType_t op_type = parser.prev.type;
 
@@ -996,18 +1022,18 @@ static void binary(bool can_assign) {
     }
 }
 
-static void call(bool can_assign) {
+void call(bool can_assign) {
     uint8_t arg_count = arg_list();
     emit_bytes(OP_CALL, arg_count);
 }
 
 // ===================================================================================================
 
-static bool check(TokenType_t type) {
+bool check(TokenType_t type) {
     return parser.cur.type == type;
 }
 
-static void consume(TokenType_t type, const char *msg) {
+void consume(TokenType_t type, const char *msg) {
     if (parser.cur.type == type) {
         go_next();
         return;
@@ -1015,7 +1041,7 @@ static void consume(TokenType_t type, const char *msg) {
     report_error(&parser.cur, msg);
 }
 
-static void go_next() {
+void go_next() {
     parser.prev = parser.cur;
     while (true) {
         parser.cur = scan_token();
@@ -1026,9 +1052,10 @@ static void go_next() {
     }
 }
 
-static void report_error(Token_t *token, const char *msg) {
+void report_error(Token_t *token, const char *msg) {
     if (parser.is_panicking) {
-        // if parser is panicking (err was found earlier) just ignore the errors and keep going
+        // if parser is panicking (err was found earlier) just ignore the errors
+        // and keep going
         return;
     }
     parser.is_panicking = true;
@@ -1036,7 +1063,8 @@ static void report_error(Token_t *token, const char *msg) {
     if (token->type == TOKEN_END_FILE) {
         fprintf(stderr, " end of file");
     } else if (token->type != TOKEN_ERROR) {
-        // error tokens are not stored in entirety so only print the lexme if token != error
+        // error tokens are not stored in entirety so only print the lexme if
+        // token != error
         fprintf(stderr, " at '%.*s'", token->length, token->start);
     }
 
